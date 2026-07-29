@@ -1,7 +1,7 @@
 from flask import Flask
-
 from config import Config
 from database.db import db
+from database.models import *
 from routes.home import home
 
 app = Flask(__name__)
