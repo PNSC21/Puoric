@@ -1,0 +1,148 @@
+@media(max-width:992px){
+
+    .hero-content{
+
+        grid-template-columns:1fr;
+
+    }
+
+    .hero-left{
+
+        text-align:center;
+
+    }
+
+    .hero-left p{
+
+        margin:auto;
+        margin-top:25px;
+        margin-bottom:30px;
+
+    }
+
+    .hero-buttons{
+
+        justify-content:center;
+
+    }
+
+    .hero-features{
+
+        justify-content:center;
+
+    }
+
+    .hero-right{
+
+        height:500px;
+
+    }
+
+}
+
+@media(max-width:576px){
+
+    .hero-left h1{
+
+        font-size:2.7rem;
+
+    }
+
+    .floating-card{
+
+        width:130px;
+        height:130px;
+        font-size:1rem;
+
+    }
+
+}
+
+@media(max-width:992px){
+
+    .philosophy-content{
+        grid-template-columns:1fr;
+    }
+
+    .section-header{
+        margin-bottom:50px;
+    }
+
+}
+
+@media(max-width:768px){
+
+    .philosophy-section{
+        padding-top:120px;
+    }
+
+    .feature-item{
+        flex-direction:column;
+        text-align:center;
+        align-items:center;
+    }
+
+    .philosophy-text{
+        text-align:center;
+    }
+
+}
+
+@media(max-width:992px){
+
+    .why-grid{
+        grid-template-columns:repeat(2,1fr);
+    }
+
+}
+
+@media(max-width:576px){
+
+    .why-grid{
+        grid-template-columns:1fr;
+    }
+
+}
+
+@media(max-width:768px){
+
+    .journey-card{
+        padding:60px 25px;
+    }
+
+    .journey-card h2{
+        font-size:2rem;
+    }
+
+    .journey-buttons{
+        flex-direction:column;
+        align-items:center;
+    }
+
+    .journey-buttons a{
+        width:100%;
+        max-width:320px;
+    }
+
+}
+
+@media(max-width:992px){
+
+    .footer-grid{
+        grid-template-columns:1fr 1fr;
+    }
+
+}
+
+@media(max-width:768px){
+
+    .footer-grid{
+        grid-template-columns:1fr;
+        text-align:center;
+    }
+
+    .footer-social{
+        justify-content:center;
+    }
+
+}

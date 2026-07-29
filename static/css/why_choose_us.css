@@ -1,0 +1,53 @@
+.why-section{
+    background:#ffffff;
+}
+
+.why-grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:25px;
+    margin-top:60px;
+}
+
+.why-card{
+    background:#ffffff;
+    border-radius:24px;
+    padding:35px 28px;
+    text-align:center;
+    box-shadow:var(--shadow);
+    transition:var(--transition);
+    border:1px solid transparent;
+}
+
+.why-card:hover{
+    transform:translateY(-10px);
+    border-color:rgba(124,58,237,.15);
+}
+
+.why-icon{
+    width:75px;
+    height:75px;
+    margin:auto;
+    margin-bottom:25px;
+    border-radius:50%;
+    background:linear-gradient(135deg,var(--primary),var(--secondary));
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.why-icon i{
+    color:#fff;
+    font-size:1.8rem;
+}
+
+.why-card h4{
+    margin-bottom:15px;
+    font-weight:600;
+}
+
+.why-card p{
+    color:var(--text-light);
+    line-height:1.8;
+    margin:0;
+}
