@@ -5,3 +5,14 @@ from database.models.order import Order
 from database.models.order_item import OrderItem
 from database.models.payment import Payment
 from database.models.beauty_advisor import BeautyAdvisor
+from database.models.admin_user import AdminUser
+from database.models.customer_address import CustomerAddress
+from database.models.product_characteristic import ProductCharacteristic
+from database.models.product_variant import ProductVariant
+from database.models.category_characteristic import CategoryCharacteristic
+from database.models.category_characteristic_value import CategoryCharacteristicValue
+from database.models.category_variant_type import CategoryVariantType
+from database.models.category_variant_unit import CategoryVariantUnit
+from database.models.promotion import Promotion
+from database.models.account_email import AccountEmail
+from database.models.store_setting import StoreSetting

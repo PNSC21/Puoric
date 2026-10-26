@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Admin sign in | Puoric{% endblock %}
+{% block content %}
+<section class="section auth-section">
+    <form class="form-card form-card-narrow admin-auth" method="post">
+        <p class="eyebrow">PUORIC ADMINISTRATION</p>
+        <h1>Admin sign in</h1>
+        <p>Manage the catalogue and customer orders.</p>
+        <label>Email<input type="email" name="email" required autocomplete="username"></label>
+        <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
+        <button class="btn-primary-custom" type="submit">Sign in</button>
+        <p class="form-footnote">
+            <a href="{{ url_for('admin.signup') }}">Admin sign up</a>
+            {% if not signup_enabled %}(administrator sign-in or invitation key required){% endif %}
+        </p>
+    </form>
+</section>
+{% endblock %}

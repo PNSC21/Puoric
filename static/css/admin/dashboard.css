@@ -1,0 +1,7 @@
+.admin-auth{
+    border-top:4px solid var(--primary);
+}
+
+.admin-dashboard .dashboard-nav{
+    border-left:4px solid var(--primary);
+}

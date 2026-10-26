@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Offers | Puoric admin{% endblock %}
+{% block content %}
+<section class="section dashboard-section">
+    <div class="container-custom">
+        <header class="page-heading"><p class="eyebrow">CLIENT OFFERS</p><h1>Offers</h1><p>Eligible offers are applied automatically at checkout across all categories.</p></header>
+        {% set area = "admin" %}{% include "components/dashboard_nav.html" %}
+        <p><a class="btn-primary-custom" href="{{ url_for('admin.promotion_edit') }}">Create offer</a></p>
+        <section class="dashboard-panel">
+            {% if promotions %}
+                <div class="table-wrap"><table><thead><tr><th>Offer</th><th>Discount</th><th>Audience</th><th>Period</th><th>Status</th><th></th></tr></thead><tbody>
+                {% for promotion in promotions %}
+                    <tr>
+                        <td><strong>{{ promotion.name }}</strong><br>
+                            {% if promotion.applies_to_all_categories %}All categories{% else %}
+                                {% for category in promotion.categories %}{{ category.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+                            {% endif %}
+                        </td>
+                        <td>{% if promotion.discount_type == "percent" %}{{ promotion.discount_value }}%{% else %}{{ promotion.discount_value|currency }}{% endif %}</td>
+                        <td>
+                            {% if promotion.festival_name %}{{ promotion.festival_name }} · {% endif %}
+                            {% if promotion.new_clients_only %}New clients only · {% endif %}
+                            {% if promotion.gender %}{{ promotion.gender }} · {% endif %}
+                            {% if promotion.minimum_age or promotion.maximum_age %}Age {{ promotion.minimum_age or "13+" }}–{{ promotion.maximum_age or "120" }} · {% endif %}
+                            {% if promotion.minimum_orders is not none or promotion.maximum_orders is not none %}{{ promotion.minimum_orders or 0 }}–{{ promotion.maximum_orders or "any" }} orders{% else %}All clients{% endif %}
+                        </td>
+                        <td>{{ promotion.starts_at.strftime("%d %b %Y %H:%M") }} – {{ promotion.ends_at.strftime("%d %b %Y %H:%M") }} UTC</td>
+                        <td>{{ "Active" if promotion.is_active else "Paused" }}</td>
+                        <td class="inline-actions">
+                            <a href="{{ url_for('admin.promotion_edit', promotion_id=promotion.id) }}">Edit</a>
+                            <form method="post" action="{{ url_for('admin.promotion_toggle', promotion_id=promotion.id) }}"><button class="text-button" type="submit">{{ "Pause" if promotion.is_active else "Activate" }}</button></form>
+                            <form method="post" action="{{ url_for('admin.promotion_delete', promotion_id=promotion.id) }}" onsubmit="return confirm('Delete this offer? Existing order discounts remain in order history.');"><button class="text-button" type="submit">Delete</button></form>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody></table></div>
+            {% else %}<p class="empty-state">No offers created yet.</p>{% endif %}
+        </section>
+    </div>
+</section>
+{% endblock %}

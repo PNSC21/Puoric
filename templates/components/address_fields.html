@@ -1,0 +1,8 @@
+<label>Full name<input name="full_name" maxlength="120" required value="{{ values.full_name if values else '' }}"></label>
+<label>Phone<input name="phone" maxlength="20" required value="{{ values.phone if values else '' }}"></label>
+<label class="field-wide">Address line 1<input name="address_line1" maxlength="255" required value="{{ values.address_line1 if values else '' }}"></label>
+<label class="field-wide">Address line 2 <span class="muted">(optional)</span><input name="address_line2" maxlength="255" value="{{ values.address_line2 if values else '' }}"></label>
+<label>City<input name="city" maxlength="80" required value="{{ values.city if values else '' }}"></label>
+<label>State<input name="state" maxlength="80" required value="{{ values.state if values else '' }}"></label>
+<label>Country<input name="country" maxlength="80" value="{{ values.country if values and values.country else 'India' }}"></label>
+<label>PIN code<input name="pincode" maxlength="10" required value="{{ values.pincode if values else '' }}"></label>

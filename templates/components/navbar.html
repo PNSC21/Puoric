@@ -32,38 +32,48 @@
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="#">Products</a>
+                    <a class="nav-link" href="{{ url_for('store.catalog') }}">Products</a>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="#">Beauty Advisor</a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link" href="#">Contact</a>
+                    <a class="nav-link" href="{{ url_for('home.index') }}#contact">Contact</a>
                 </li>
 
             </ul>
 
             <div class="navbar-icons">
 
-                <button class="icon-btn">
-
-                    🔍
-
-                </button>
-
-                <button class="icon-btn cart-btn">
-
-                    🛒
-
-                    <span class="cart-count">
-
-                        0
-
-                    </span>
-
-                </button>
+                {% if admin_id %}
+                    <a class="nav-link" href="{{ url_for('admin.dashboard') }}">Admin</a>
+                    <a class="nav-link" href="{{ url_for('admin.profile') }}">Profile</a>
+                    <form action="{{ url_for('admin.logout') }}" method="post">
+                        <button class="nav-link nav-action" type="submit">Sign out</button>
+                    </form>
+                {% elif customer_id %}
+                    <a class="icon-btn cart-btn" href="{{ url_for('customer.cart') }}" aria-label="Cart">
+                        <i class="bi bi-bag"></i>
+                        <span class="cart-count">{{ cart_count }}</span>
+                    </a>
+                    <a class="nav-link" href="{{ url_for('customer.dashboard') }}">My account</a>
+                    <form action="{{ url_for('customer.logout') }}" method="post">
+                        <button class="nav-link nav-action" type="submit">Sign out</button>
+                    </form>
+                {% else %}
+                    <div class="dropdown">
+                        <button class="nav-link dropdown-toggle" data-bs-toggle="dropdown" type="button">Sign in</button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('customer.login') }}">Client sign in</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin.login') }}">Admin sign in</a></li>
+                        </ul>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn-primary-custom nav-signup dropdown-toggle" data-bs-toggle="dropdown" type="button">Sign up</button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('customer.signup') }}">Client sign up</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin.signup') }}">Admin sign up</a></li>
+                        </ul>
+                    </div>
+                {% endif %}
 
             </div>
 

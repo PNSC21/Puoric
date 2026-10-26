@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if product else "Add" }} product | Puoric admin{% endblock %}
+{% block content %}
+<section class="section dashboard-section">
+    <div class="container-custom">
+        <header class="page-heading"><p class="eyebrow">CATALOGUE</p><h1>{{ "Edit product" if product else "Add a product" }}</h1></header>
+        {% set area = "admin" %}{% include "components/dashboard_nav.html" %}
+        <form class="form-card form-card-wide" method="post" id="product-form" enctype="multipart/form-data">
+            <div class="form-grid">
+                <label>Product name<input name="name" maxlength="150" required value="{{ product.name if product else '' }}"></label>
+                <label>Category<select name="category_id" id="product-category" required><option value="">Choose a category</option>{% for category in categories %}<option value="{{ category.id }}" {% if product and product.category_id == category.id %}selected{% endif %}>{{ category.name }}{% if categories|selectattr("name", "equalto", category.name)|list|length > 1 %} ({{ category.slug }}){% endif %}</option>{% endfor %}</select></label>
+                <label>Price (₹)<input type="number" name="price" id="product-price" min="1" step="1" required value="{{ product.price|int if product else '' }}"></label>
+                <label>Discount type
+                    <select name="discount_type" id="discount-type">
+                        <option value="none" {% if not product or product.discount_type == "none" %}selected{% endif %}>No discount</option>
+                        <option value="percent" {% if product and product.discount_type == "percent" %}selected{% endif %}>Percentage off</option>
+                        <option value="amount" {% if product and product.discount_type == "amount" %}selected{% endif %}>Fixed amount off</option>
+                    </select>
+                </label>
+                <label>Discount value<input type="number" name="discount_value" id="discount-value" min="1" step="1" value="{{ product.discount_value|int if product and product.discount_value else '' }}"><span class="muted" id="discount-preview"></span></label>
+                <label>Stock<input type="number" name="stock" min="0" value="{{ product.stock if product else 0 }}"></label>
+                <label>Low stock alert at<input type="number" name="low_stock_limit" min="0" value="{{ product.low_stock_limit if product else 5 }}"></label>
+                <label class="field-wide">Product image<input type="file" name="image" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"><span class="muted">JPG, PNG, or WebP; maximum 5 MB.</span>{% if product and product.image %}<img class="admin-image-preview" src="{{ url_for('static', filename=product.image) }}" alt="{{ product.name }}">{% endif %}</label>
+                <label class="field-wide">Description<textarea name="description" rows="3">{{ product.description if product else '' }}</textarea></label>
+                <label>Ingredients<textarea name="ingredients" rows="3">{{ product.ingredients if product else '' }}</textarea></label>
+                <label>How to use<textarea name="how_to_use" rows="3">{{ product.how_to_use if product else '' }}</textarea></label>
+                <div class="field-wide repeatable-field">
+                    <h2>Characteristics</h2>
+                    <p class="muted">Choose a tag and value, or add new ones. New entries are saved for this category.</p>
+                    <div id="characteristic-rows">
+                        {% if product %}{% for tag in product.characteristics %}
+                        <div class="repeatable-row characteristic-row">
+                            <select name="characteristic_tag_id" class="characteristic-tag" aria-label="Characteristic tag">
+                                {% for item in category_characteristics.get(product.category_id|string, []) %}<option value="{{ item['id'] }}" {% if item['name'] == tag.name %}selected{% endif %}>{{ item['name'] }}</option>{% endfor %}
+                                <option value="__new__">Add a new tag</option>
+                            </select>
+                            <input name="characteristic_new_tag" class="characteristic-new-tag" maxlength="80" aria-label="New characteristic tag" placeholder="New tag" hidden>
+                            <select name="characteristic_value_id" class="characteristic-value" aria-label="Characteristic value">
+                                {% for item in category_characteristics.get(product.category_id|string, []) if item['name'] == tag.name %}{% for saved_value in item['values'] %}<option value="{{ saved_value['id'] }}" {% if saved_value['value'] == tag.value %}selected{% endif %}>{{ saved_value['value'] }}</option>{% endfor %}{% endfor %}
+                                <option value="__new__">Add a new value</option>
+                            </select>
+                            <input name="characteristic_new_value" class="characteristic-new-value" maxlength="255" aria-label="New characteristic value" placeholder="New value" hidden>
+                            <button class="text-button remove-row" type="button" aria-label="Remove characteristic">Remove</button>
+                        </div>
+                        {% endfor %}{% endif %}
+                    </div>
+                    <button class="btn-outline-custom" type="button" id="add-characteristic">Add characteristic</button>
+                </div>
+                <div class="field-wide repeatable-field">
+                    <h2>Product options</h2>
+                    <p class="muted">An option is identified by its type and value, such as Color: blue or Weight: 75 g. Units are available only for Weight. Price override is separate.</p>
+                    <div id="variant-rows">
+                        {% if product %}{% for variant in product.variants %}
+                        {% set saved_types = category_variant_types.get(product.category_id|string, []) %}
+                        {% set saved_type_names = saved_types|map(attribute='name')|list %}
+                        {% set saved_type = saved_types|selectattr('name', 'equalto', variant.name)|first %}
+                        <div class="repeatable-row variant-row">
+                            <input type="hidden" name="variant_id" value="{{ variant.id }}">
+                            <label class="variant-field">Type<select name="variant_name" class="variant-type" aria-label="Option type">
+                                {% for item in saved_types %}<option value="{{ item['name'] }}" {% if variant.name == item['name'] %}selected{% endif %}>{{ item['name'] }}</option>{% endfor %}
+                                {% if variant.name not in saved_type_names %}<option value="{{ variant.name }}" selected>{{ variant.name }}</option>{% endif %}
+                                <option value="__new__">Add a new type</option>
+                            </select><input name="variant_new_type" class="variant-new-type" maxlength="80" aria-label="New option type" placeholder="New type" hidden></label>
+                            <label class="variant-field">Value<input name="variant_value" class="variant-value" aria-label="Option value" value="{{ variant.value }}" placeholder="e.g. 50"></label>
+                            <label class="variant-field variant-unit-field" {% if variant.name|lower != 'weight' %}hidden{% endif %}>Unit<select name="variant_unit" class="variant-unit" aria-label="Measuring unit"><option value="">Choose a unit</option>{% if variant.name|lower == 'weight' and saved_type %}{% for unit in saved_type['units'] %}<option value="{{ unit }}" {% if variant.unit == unit %}selected{% endif %}>{{ unit }}</option>{% endfor %}{% endif %}{% if variant.name|lower == 'weight' and variant.unit and (not saved_type or variant.unit not in saved_type['units']) %}<option value="{{ variant.unit }}" selected>{{ variant.unit }}</option>{% endif %}<option value="__new__">Add a new unit</option></select><input name="variant_new_unit" class="variant-new-unit" maxlength="20" aria-label="New measuring unit" placeholder="New unit" hidden></label>
+                            <label class="variant-field">Price override<input type="number" name="variant_price" min="1" step="1" aria-label="Price override" value="{{ variant.price|int if variant.price is not none else '' }}" placeholder="Use product price"></label>
+                            <label class="variant-field">Stock quantity<input type="number" name="variant_stock" min="0" aria-label="Stock quantity" value="{{ variant.stock }}" placeholder="0"></label>
+                            <label class="check-field variant-active-field"><input type="checkbox" name="variant_active_{{ variant.id }}" {% if variant.is_active %}checked{% endif %}> Active</label>
+                            <button class="text-button remove-row" type="button" aria-label="Remove product option">Remove</button>
+                        </div>
+                        {% endfor %}{% endif %}
+                    </div>
+                    <button class="btn-outline-custom" type="button" id="add-variant">Add product option</button>
+                </div>
+                <label class="check-field"><input type="checkbox" name="is_featured" {% if not product or product.is_featured %}checked{% endif %}> Feature on storefront</label>
+                <label class="check-field"><input type="checkbox" name="is_active" {% if not product or product.is_active %}checked{% endif %}> Visible in storefront</label>
+            </div>
+            <div class="inline-actions"><button class="btn-primary-custom" type="submit">Save product</button><a class="btn-outline-custom" href="{{ url_for('admin.products') }}">Cancel</a></div>
+        </form>
+        <script id="category-characteristics" type="application/json">{{ category_characteristics|tojson }}</script>
+        <script id="category-variant-types" type="application/json">{{ category_variant_types|tojson }}</script>
+        <script src="{{ url_for('static', filename='js/admin-product.js') }}" defer></script>
+    </div>
+</section>
+{% endblock %}

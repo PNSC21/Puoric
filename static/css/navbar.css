@@ -6,6 +6,12 @@
     z-index:999;
 }
 
+.custom-navbar>.container-custom{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+}
+
 .custom-navbar.scrolled{
     box-shadow:0 10px 25px rgba(0,0,0,.08);
     padding:10px 0;
@@ -56,12 +62,15 @@
 
 .navbar-icons{
     display:flex;
+    align-items:center;
     gap:12px;
 }
 
 .icon-btn{
+    display:grid;
     width:46px;
     height:46px;
+    place-items:center;
     border:none;
     background:white;
     border-radius:50%;
@@ -87,4 +96,62 @@
     display:flex;
     align-items:center;
     justify-content:center;
+}
+
+.navbar-icons form{
+    margin:0;
+}
+
+.nav-action{
+    cursor:pointer;
+}
+
+.nav-signup{
+    color:#fff;
+    border-radius:30px;
+}
+
+.nav-signup:hover{
+    color:#fff;
+}
+
+.admin-entry-link{
+    padding-right:8px !important;
+    padding-left:8px !important;
+    color:var(--text-light);
+    font-size:.82rem;
+    white-space:nowrap;
+}
+
+@media(max-width:991px){
+    .custom-navbar>.container-custom{
+        flex-wrap:wrap;
+    }
+
+    .custom-navbar .brand{
+        margin-right:auto;
+    }
+
+    .custom-navbar .navbar-toggler{
+        margin-left:12px;
+    }
+
+    .custom-navbar .navbar-collapse{
+        flex-basis:100%;
+    }
+
+    .navbar-icons{
+        justify-content:center;
+        flex-wrap:wrap;
+        padding:12px 0 6px;
+    }
+
+    .admin-entry-link{
+        flex-basis:100%;
+        text-align:center;
+    }
+
+    .navbar-icons form{
+        display:flex;
+    }
 }

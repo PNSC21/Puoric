@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Edit profile | Puoric{% endblock %}
+{% block content %}
+<section class="section dashboard-section customer-dashboard">
+    <div class="container-custom">
+        <header class="page-heading"><p class="eyebrow">YOUR ACCOUNT</p><h1>Edit profile</h1></header>
+        {% set area = "customer" %}{% include "components/dashboard_nav.html" %}
+        <form class="form-card" method="post">
+            <div class="form-grid">
+                <label>Full name<input name="full_name" maxlength="120" value="{{ account.full_name }}" required></label>
+                <label>Email<input type="email" name="email" maxlength="120" value="{{ account.email }}" required></label>
+                <label>Phone<input name="phone" maxlength="15" value="{{ account.phone }}" required></label>
+                <label>Age<input type="number" name="age" min="13" max="120" value="{{ account.age or '' }}"></label>
+                <label>Gender<select name="gender">
+                    <option value="">Prefer not to say</option>
+                    {% for option in ["Female", "Male", "Non-binary", "Other"] %}
+                        <option value="{{ option }}" {% if account.gender == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select></label>
+                <label>Skin type<input name="skin_type" maxlength="80" value="{{ account.skin_type or '' }}"></label>
+                <label class="field-wide">Allergies<textarea name="allergies" rows="3" maxlength="2000">{{ account.allergies or '' }}</textarea></label>
+            </div>
+            <button class="btn-primary-custom" type="submit">Save profile</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

@@ -62,7 +62,7 @@ button{
 
     background:var(--primary);
 
-    color:white;
+    color:#fff;
 
     padding:14px 30px;
 
@@ -79,6 +79,8 @@ button{
 .btn-primary-custom:hover{
 
     background:var(--primary-dark);
+
+    color:#fff;
 
     transform:translateY(-2px);
 

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Admin profile | Puoric{% endblock %}
+{% block content %}
+<section class="section dashboard-section">
+    <div class="container-custom">
+        <header class="page-heading"><p class="eyebrow">PUORIC ADMINISTRATION</p><h1>Edit profile</h1></header>
+        {% set area = "admin" %}{% include "components/dashboard_nav.html" %}
+        <form class="form-card form-card-narrow" method="post">
+            <label>Full name<input name="full_name" maxlength="120" value="{{ account.full_name }}" required></label>
+            <label>Email<input type="email" name="email" maxlength="120" value="{{ account.email }}" required></label>
+            <button class="btn-primary-custom" type="submit">Save profile</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

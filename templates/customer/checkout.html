@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Checkout | Puoric{% endblock %}
+{% block content %}
+<section class="section dashboard-section customer-dashboard">
+    <div class="container-custom">
+        <header class="page-heading"><p class="eyebrow">SECURE CHECKOUT</p><h1>Delivery details</h1></header>
+        <form class="checkout-layout" method="post">
+            <section class="dashboard-panel">
+                <h2>Choose an address</h2>
+                {% for address in addresses %}
+                    <label class="address-choice">
+                        <input type="radio" name="address_id" value="{{ address.id }}" {% if address.is_default or loop.first %}checked{% endif %} required>
+                        <span><strong>{{ address.full_name }}{% if address.is_default %} · Default{% endif %}</strong><br>{{ address.phone }}<br>{{ address.formatted }}</span>
+                    </label>
+                {% else %}
+                    <p>No delivery address saved. <a href="{{ url_for('customer.addresses') }}">Add an address</a></p>
+                {% endfor %}
+                <label>Order note (optional)
+                <textarea name="customer_note" rows="1" maxlength="1000"
+                    style="width:100%; min-height:40px; border:1px solid #ccc; border-radius:12px; padding:10px 12px; box-sizing:border-box; resize:vertical; overflow:hidden;"
+                    oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px';"></textarea>
+                </label>
+                <h2>Payment method</h2>
+                <label class="payment-choice">
+                    <input type="radio" name="payment_method" value="Cash on delivery" checked required>
+                    <span><strong>Cash on delivery</strong><small>Pay when your order arrives.</small></span>
+                </label>
+                <label class="payment-choice {% if not upi_enabled %}payment-choice-disabled{% endif %}">
+                    <input type="radio" name="payment_method" value="UPI QR" {% if not upi_enabled %}disabled{% endif %}>
+                    <span><strong>Pay by UPI QR</strong><small>
+                        {% if upi_enabled %}
+                            Scan the order-specific QR code after placing your order.
+                        {% else %}
+                            {{ upi_unavailable_reason }}
+                        {% endif %}
+                    </small></span>
+                </label>
+            </section>
+            <aside class="dashboard-panel cart-summary">
+                <h2>Order summary</h2>
+                {% for line in lines %}<p><span>{{ line.product.name }} × {{ line.quantity }}</span><strong>{{ line.subtotal|currency }}</strong></p>{% endfor %}
+                <hr><p><span>Subtotal</span><strong>{{ subtotal|currency }}</strong></p>
+                {% if quote.promotion %}<p><span>{{ quote.promotion.name }}</span><strong>−{{ quote.discount|currency }}</strong></p>{% endif %}
+                <p class="total-line"><strong>Total</strong><strong>{{ quote.total|currency }}</strong></p>
+                <button class="btn-primary-custom" type="submit" {% if not addresses %}disabled{% endif %}>Place order</button>
+            </aside>
+        </form>
+    </div>
+</section>
+{% endblock %}

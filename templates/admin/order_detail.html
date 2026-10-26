@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Manage {{ order.order_number }} | Puoric admin{% endblock %}
+{% block content %}
+<section class="section dashboard-section">
+    <div class="container-custom">
+        <header class="page-heading"><p class="eyebrow">ORDER MANAGEMENT</p><h1>{{ order.order_number }}</h1><p>{{ order.customer.full_name }} · {{ order.customer.email }} · {{ order.created_at.strftime("%d %b %Y") }}</p></header>
+        {% set area = "admin" %}{% include "components/dashboard_nav.html" %}
+        <div class="order-detail-grid">
+            <section class="dashboard-panel">
+                <h2>Order items</h2>
+                {% for item in order.order_items %}<p>{{ item.product.name }}{% if item.variant %} · {{ item.variant.name }}: {{ item.variant.value }}{% if item.variant.name|lower == 'weight' and item.variant.unit %} {{ item.variant.unit }}{% endif %}{% endif %} × {{ item.quantity }} <strong>{{ item.subtotal|currency }}</strong></p>{% endfor %}
+                <hr><p>Subtotal <strong>{{ order.subtotal_amount|currency }}</strong></p>
+                {% if order.discount_amount %}<p>{{ order.promotion_name }} <strong>−{{ order.discount_amount|currency }}</strong></p>{% endif %}
+                <p class="total-line"><strong>Total</strong><strong>{{ order.total_amount|currency }}</strong></p>
+                <h2>Ship to</h2><p>{{ order.shipping_name }} · {{ order.shipping_phone }}<br>{{ order.shipping_address }}</p>
+                {% if order.customer_note %}<h2>Client note</h2><p>{{ order.customer_note }}</p>{% endif %}
+                {% if order.order_status not in ["Cancelled", "Delivered"] %}
+                    <h2>Delivery confirmation</h2>
+                    {% if order.payment_method == "Cash on delivery" and order.payment_status != "Paid" %}
+                        <p>Collect <strong>{{ order.total_amount|currency }}</strong> and confirm the client has the correct order before asking for their code. The code confirms both delivery and cash payment.</p>
+                    {% else %}
+                        <p>The one-time code confirms the client received the correct order. Payment status is handled separately.</p>
+                    {% endif %}
+                    {% if order.shipping_status == "Shipped" %}
+                        {% if delivery_whatsapp_url %}
+                            <p>Send the one-time code to {{ order.shipping_phone }}. Ask the client to share it after receiving and checking the order.</p>
+                            <a class="btn-primary-custom" href="{{ delivery_whatsapp_url }}" target="_blank" rel="noopener noreferrer">Open WhatsApp and send receipt code</a>
+                        {% else %}
+                            <p>Prepare a one-time code in WhatsApp for {{ order.shipping_phone }}.</p>
+                        {% endif %}
+                        <form method="post">
+                            <input type="hidden" name="action" value="prepare_delivery_code">
+                            <button class="btn-outline-custom" type="submit">
+                                {% if order.delivery_code_hash %}Create a new code{% else %}Prepare WhatsApp code{% endif %}
+                            </button>
+                        </form>
+                        <form class="stack-form" method="post">
+                            <input type="hidden" name="action" value="verify_delivery">
+                            <label>Client receipt code<input name="delivery_code" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label>
+                            <button class="btn-primary-custom" type="submit">Confirm receipt</button>
+                        </form>
+                    {% else %}
+                        <p>Move the order to Shipped to prepare its WhatsApp receipt code.</p>
+                    {% endif %}
+                {% endif %}
+            </section>
+            <form class="dashboard-panel stack-form" method="post">
+                <h2>Order status</h2>
+                <label>Progress<select name="order_status">{% for status in order_statuses %}<option {% if status == order.order_status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select></label>
+                {% if order.payment_method != "Cash on delivery" or order.payment_status == "Paid" %}
+                    <label>Payment<select name="payment_status">{% for status in payment_statuses %}<option {% if status == order.payment_status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select></label>
+                {% else %}
+                    <p>Payment status: <strong>{{ order.payment_status }}</strong>. COD can be marked Paid only after delivery-code verification.</p>
+                    <input type="hidden" name="payment_status" value="{{ order.payment_status }}">
+                {% endif %}
+                <label>Admin note<textarea name="admin_note" rows="4" maxlength="1000">{{ order.admin_note or '' }}</textarea></label>
+                <button class="btn-primary-custom" type="submit">Save order status</button>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}

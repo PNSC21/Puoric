@@ -22,6 +22,18 @@ class Customer(BaseModel):
         unique=True
     )
 
+    password_hash = db.Column(
+        db.String(255)
+    )
+
+    age = db.Column(db.Integer)
+
+    gender = db.Column(db.String(30))
+
+    skin_type = db.Column(db.String(80))
+
+    allergies = db.Column(db.Text)
+
     address = db.Column(
         db.Text,
         nullable=False
@@ -61,6 +73,13 @@ class Customer(BaseModel):
     orders = db.relationship(
         "Order",
         back_populates="customer",
+        lazy=True
+    )
+
+    addresses = db.relationship(
+        "CustomerAddress",
+        back_populates="customer",
+        cascade="all, delete-orphan",
         lazy=True
     )
 

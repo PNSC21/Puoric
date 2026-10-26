@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name }} | Puoric{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container-custom product-detail">
+        <div class="product-detail-image">
+            {% if product.image %}
+                <img src="{{ url_for('static', filename=product.image) }}" alt="{{ product.name }}">
+            {% else %}
+                <div class="product-placeholder"><i class="bi bi-flower1"></i></div>
+            {% endif %}
+        </div>
+        <div class="product-detail-copy">
+            <p class="eyebrow">{{ product.category.name }} · Puoric</p>
+            <h1>{{ product.name }}</h1>
+            {% if product.description and product.description|trim|lower not in ["none", "null"] %}<p>{{ product.description }}</p>{% endif %}
+            <p class="product-price">{{ product.sale_price()|currency }}</p>
+            {% if product.available_stock == 0 %}
+                <p class="stock-message stock-unavailable">Currently out of stock</p>
+            {% elif product.low_stock %}
+                <p class="stock-message stock-low">Only {{ product.available_stock }} left{% if product.variants %} across options{% endif %}</p>
+            {% endif %}
+            {% if product.ingredients and product.ingredients|trim|lower not in ["none", "null"] %}<h2>Ingredients</h2><p>{{ product.ingredients }}</p>{% endif %}
+            {% if product.how_to_use and product.how_to_use|trim|lower not in ["none", "null"] %}<h2>How to use</h2><p>{{ product.how_to_use }}</p>{% endif %}
+            {% if product.characteristics %}
+                <ul class="characteristic-list">
+                    {% for tag in product.characteristics %}
+                        <li><strong>{{ tag.name }}</strong><span>{{ tag.value }}</span></li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            {% if not admin_id and ((has_options and variants|selectattr("stock", "gt", 0)|list) or (not has_options and product.stock > 0)) %}
+                <form class="stack-form" action="{{ url_for('customer.add_to_cart', product_id=product.id) }}" method="post">
+                    {% if has_options %}
+                        <label>Option
+                            <select name="variant_id" required>
+                                <option value="">Choose an option</option>
+                                {% for variant in variants %}
+                                    <option value="{{ variant.id }}" data-stock="{{ variant.stock }}" {% if variant.stock < 1 %}disabled{% endif %}>{{ variant.name }}: {{ variant.value }}{% if variant.name|lower == 'weight' and variant.unit %} {{ variant.unit }}{% endif %} · {{ product.sale_price(variant.price if variant.price is not none else product.price)|currency }}{% if variant.stock < 1 %} · Out of stock{% elif variant.low_stock %} · Only {{ variant.stock }} left{% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                    {% endif %}
+                    <label>Quantity<input type="number" name="quantity" min="1" value="1" required></label>
+                    <button class="btn-primary-custom" type="submit">Add to cart</button>
+                </form>
+            {% elif not admin_id %}
+                <p class="muted">Currently unavailable</p>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

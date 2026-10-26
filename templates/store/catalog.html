@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Products | Puoric{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container-custom">
+        <header class="page-heading">
+            <p class="eyebrow">THE PUORIC COLLECTION</p>
+            <h1>Products</h1>
+            <p>Find the care that fits your routine.</p>
+        </header>
+        <form class="catalog-tools" method="get">
+            <input type="search" name="q" value="{{ search }}" placeholder="Search products" aria-label="Search products">
+            <select name="category" aria-label="Filter by category">
+                <option value="">All categories</option>
+                {% for category in categories %}
+                    <option value="{{ category.slug }}" {% if selected_category == category.slug %}selected{% endif %}>{{ category.name }}{% if categories|selectattr("name", "equalto", category.name)|list|length > 1 %} ({{ category.slug }}){% endif %}</option>
+                {% endfor %}
+            </select>
+            <button class="btn-primary-custom" type="submit">Filter</button>
+        </form>
+        <div class="product-grid">
+            {% for product in products %}
+                <a class="product-card" href="{{ url_for('store.product_detail', slug=product.slug) }}">
+                    {% if product.image %}
+                        <img src="{{ url_for('static', filename=product.image) }}" alt="{{ product.name }}">
+                    {% else %}
+                        <div class="product-placeholder"><i class="bi bi-flower1"></i></div>
+                    {% endif %}
+                    <span class="eyebrow">{{ product.category.name }}</span>
+                    <h2>{{ product.name }}</h2>
+                    {% if product.description and product.description|trim|lower not in ["none", "null"] %}<p>{{ product.description|truncate(120, true) }}</p>{% endif %}
+                    <strong>{{ product.sale_price()|currency }}</strong>
+                    {% if product.available_stock == 0 %}
+                        <span class="stock-message stock-unavailable">Currently out of stock</span>
+                    {% elif product.low_stock %}
+                        <span class="stock-message stock-low">Only {{ product.available_stock }} left{% if product.variants %} across options{% endif %}</span>
+                    {% endif %}
+                </a>
+            {% else %}
+                <p class="empty-state">No products match that search.</p>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

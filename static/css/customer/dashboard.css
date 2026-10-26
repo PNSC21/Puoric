@@ -1,0 +1,6 @@
+.customer-dashboard .dashboard-nav{
+    border-left:4px solid var(--secondary);
+}
+.customer-auth{
+    border-top:4px solid var(--secondary);
+}

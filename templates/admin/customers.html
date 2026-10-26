@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Clients | Puoric admin{% endblock %}
+{% block content %}
+<section class="section dashboard-section">
+    <div class="container-custom">
+        <header class="page-heading page-heading-row"><div><p class="eyebrow">CLIENT RELATIONSHIPS</p><h1>Clients</h1><p>Filter and group clients by profile and order history.</p></div><span class="status-pill">{{ result_count }} client{% if result_count != 1 %}s{% endif %}</span></header>
+        {% set area = "admin" %}{% include "components/dashboard_nav.html" %}
+        <form class="form-card form-card-wide dashboard-filter-form" method="get">
+          <h2>Filter and organize clients</h2>
+          <div class="form-grid">
+            <label>Filter by
+                <select name="filter_by" id="customer-filter-by">
+                    <option value="" {% if not filter_by %}selected{% endif %}>No client filter</option>
+                    {% for value, label in [("age", "Age"), ("gender", "Gender"), ("client_type", "New or returning"), ("orders", "Order count"), ("spend", "Order spend")] %}
+                        <option value="{{ value }}" {% if filter_by == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <div class="customer-filter-fields" data-customer-filter="age" {% if filter_by != "age" %}hidden{% endif %}>
+                <label>Age from<input type="number" name="age_min" min="13" max="120" value="{{ filters.get('age_min', '') }}"></label>
+                <label>Age to<input type="number" name="age_max" min="13" max="120" value="{{ filters.get('age_max', '') }}"></label>
+            </div>
+            <div class="customer-filter-fields" data-customer-filter="gender" {% if filter_by != "gender" %}hidden{% endif %}>
+                <label>Gender<select name="gender">
+                    <option value="">Choose a gender</option>
+                    {% for option in ["Female", "Male", "Non-binary", "Other"] %}<option {% if filters.get("gender") == option %}selected{% endif %}>{{ option }}</option>{% endfor %}
+                </select></label>
+            </div>
+            <div class="customer-filter-fields" data-customer-filter="client_type" {% if filter_by != "client_type" %}hidden{% endif %}>
+                <label>Client type<select name="client_type">
+                    <option value="">Choose a client type</option>
+                    <option value="new" {% if filters.get("client_type") == "new" %}selected{% endif %}>New</option>
+                    <option value="returning" {% if filters.get("client_type") == "returning" %}selected{% endif %}>Returning</option>
+                </select></label>
+            </div>
+            <div class="customer-filter-fields" data-customer-filter="orders" {% if filter_by != "orders" %}hidden{% endif %}>
+                <label>Orders from<input type="number" name="orders_min" min="0" value="{{ filters.get('orders_min', '') }}"></label>
+                <label>Orders to<input type="number" name="orders_max" min="0" value="{{ filters.get('orders_max', '') }}"></label>
+            </div>
+            <div class="customer-filter-fields" data-customer-filter="spend" {% if filter_by != "spend" %}hidden{% endif %}>
+                <label>Spend from (₹)<input type="number" name="spend_min" min="0" step="0.01" value="{{ filters.get('spend_min', '') }}"></label>
+                <label>Spend to (₹)<input type="number" name="spend_max" min="0" step="0.01" value="{{ filters.get('spend_max', '') }}"></label>
+            </div>
+            <label>Account status<select name="account_status">
+                <option value="">All accounts</option>
+                <option value="active" {% if filters.get("account_status") == "active" %}selected{% endif %}>Active</option>
+                <option value="banned" {% if filters.get("account_status") == "banned" %}selected{% endif %}>Banned</option>
+            </select></label>
+            <label>Sort by<select name="sort">
+                {% for value, label in [("name", "Name"), ("age", "Age"), ("orders", "Order count"), ("spend", "Order spend")] %}
+                    <option value="{{ value }}" {% if filters.get("sort", "name") == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select></label>
+            <label>Group by<select name="group">
+                {% for value, label in [("none", "No grouping"), ("gender", "Gender"), ("age", "Age range"), ("client_type", "New or returning"), ("order_count", "Order count")] %}
+                    <option value="{{ value }}" {% if group_by == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select></label>
+            <p class="field-wide muted" id="customer-filter-help" aria-live="polite">Choose a filter to enter matching client details.</p>
+            <div class="field-wide inline-actions"><button class="btn-primary-custom" type="submit">Apply filters</button><a class="btn-outline-custom" href="{{ url_for('admin.customers') }}">Clear</a></div>
+          </div>
+        </form>
+        {% for label, rows in groups.items() %}
+            <section class="dashboard-panel">
+                {% if group_by != "none" %}<h2>{{ label }} <span class="muted">({{ rows|length }})</span></h2>{% endif %}
+                <div class="table-wrap"><table><thead><tr><th>Client</th><th>Age / gender</th><th>Skin details</th><th>Orders</th><th>Spend</th><th>Account</th></tr></thead><tbody>
+                    {% for row in rows %}
+                        <tr>
+                            <td><strong>{{ row.customer.full_name }}</strong><br>{{ row.customer.email }}<br>{{ row.customer.phone }}</td>
+                            <td>{{ row.customer.age or "—" }} · {{ row.customer.gender or "Not specified" }}</td>
+                            <td>{{ row.customer.skin_type or "—" }}{% if row.customer.allergies %}<br>Allergies: {{ row.customer.allergies }}{% endif %}</td>
+                            <td>{{ row.order_count }}{% if row.order_count == 0 %} · New{% endif %}</td>
+                            <td>{{ row.spend|currency }}</td>
+                            <td>
+                                <span class="status-pill">{{ "Active" if row.customer.is_active else "Banned" }}</span>
+                                <form method="post" action="{{ url_for('admin.customer_toggle_ban', customer_id=row.customer.id) }}" onsubmit="return confirm('{{ 'Restore this client account?' if not row.customer.is_active else 'Ban this client from signing in and ordering?' }}');">
+                                    <button class="text-button" type="submit">{{ "Ban client" if row.customer.is_active else "Unban client" }}</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody></table></div>
+            </section>
+        {% else %}
+            <p class="empty-state">No clients match these filters.</p>
+        {% endfor %}
+    </div>
+</section>
+<script src="{{ url_for('static', filename='js/admin-customers.js') }}" defer></script>
+{% endblock %}

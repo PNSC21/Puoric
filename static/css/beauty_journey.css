@@ -8,9 +8,9 @@
     text-align:center;
     padding:80px 60px;
     border-radius:32px;
-    background:linear-gradient(135deg,#7C3AED,#EC4899);
+    background:linear-gradient(135deg,var(--primary),var(--secondary));
     color:#fff;
-    box-shadow:0 25px 60px rgba(124,58,237,.25);
+    box-shadow:0 25px 60px rgba(11,61,56,.25);
 }
 
 .journey-card::before{

@@ -23,6 +23,14 @@ class Order(BaseModel):
         nullable=False
     )
 
+    subtotal_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+
+    discount_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+
+    promotion_id = db.Column(db.Integer, db.ForeignKey("promotions.id"))
+
+    promotion_name = db.Column(db.String(120))
+
     payment_method = db.Column(
         db.String(30),
         default="UPI",
@@ -55,6 +63,34 @@ class Order(BaseModel):
         db.Text
     )
 
+    delivery_code_hash = db.Column(db.String(255))
+
+    delivery_code_sent_at = db.Column(db.DateTime)
+
+    delivery_code_attempts = db.Column(
+        db.Integer,
+        nullable=False,
+        default=0,
+    )
+
+    shipping_name = db.Column(
+        db.String(120),
+        nullable=False,
+        default=""
+    )
+
+    shipping_phone = db.Column(
+        db.String(20),
+        nullable=False,
+        default=""
+    )
+
+    shipping_address = db.Column(
+        db.Text,
+        nullable=False,
+        default=""
+    )
+
     customer = db.relationship(
         "Customer",
         back_populates="orders"
@@ -72,6 +108,8 @@ class Order(BaseModel):
         back_populates="order",
         uselist=False
     )
+
+    promotion = db.relationship("Promotion", back_populates="orders")
 
     def __repr__(self):
         return f"<Order {self.order_number}>"

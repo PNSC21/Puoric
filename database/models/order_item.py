@@ -18,6 +18,11 @@ class OrderItem(BaseModel):
         nullable=False
     )
 
+    variant_id = db.Column(
+        db.Integer,
+        db.ForeignKey("product_variants.id")
+    )
+
     quantity = db.Column(
         db.Integer,
         default=1,
@@ -42,6 +47,10 @@ class OrderItem(BaseModel):
     product = db.relationship(
         "Product",
         back_populates="order_items"
+    )
+
+    variant = db.relationship(
+        "ProductVariant"
     )
 
     def __repr__(self):

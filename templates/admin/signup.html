@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Create admin account | Puoric{% endblock %}
+{% block content %}
+<section class="section auth-section">
+    <form class="form-card form-card-narrow admin-auth" method="post">
+        <p class="eyebrow">PUORIC ADMINISTRATION</p>
+        <h1>Create admin account</h1>
+        {% if closed %}
+            <p>Public admin registration is closed. Sign in as an administrator to create another admin account, or use an invitation key.</p>
+            <a class="btn-primary-custom" href="{{ url_for('admin.login') }}">Admin sign in</a>
+        {% else %}
+        {% if first_admin %}
+            <p>Create the first admin account to manage the store. This setup page closes after the account is created.</p>
+        {% elif signed_in_admin %}
+            <p>Create an additional admin account. Public registration still requires an invitation key.</p>
+        {% else %}
+            <p>Admin registration requires an invitation key.</p>
+        {% endif %}
+        <label>Full name<input name="full_name" maxlength="120" required autocomplete="name"></label>
+        <label>Email<input type="email" name="email" maxlength="120" required autocomplete="email"></label>
+        {% if require_invitation %}
+            <label>Invitation key<input type="password" name="signup_key" required autocomplete="off"></label>
+        {% endif %}
+        <label>Password<input type="password" name="password" minlength="12" required autocomplete="new-password"></label>
+        <label>Confirm password<input type="password" name="confirm_password" minlength="12" required autocomplete="new-password"></label>
+        <button class="btn-primary-custom" type="submit">Create admin account</button>
+        {% if not signed_in_admin %}
+            <p class="form-footnote"><a href="{{ url_for('admin.login') }}">Back to admin sign in</a></p>
+        {% endif %}
+        {% endif %}
+    </form>
+</section>
+{% endblock %}

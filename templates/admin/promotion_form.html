@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if promotion else "Create" }} offer | Puoric admin{% endblock %}
+{% block content %}
+<section class="section dashboard-section">
+    <div class="container-custom">
+        <header class="page-heading"><p class="eyebrow">CLIENT OFFERS</p><h1>{{ "Edit" if promotion else "Create" }} offer</h1></header>
+        {% set area = "admin" %}{% include "components/dashboard_nav.html" %}
+        <form class="form-card" method="post" id="promotion-form">
+            <div class="form-grid">
+                <label class="field-wide">Offer name<input name="name" maxlength="120" value="{{ promotion.name if promotion else '' }}" required></label>
+                <label>Discount type<select name="discount_type" required>
+                    <option value="percent" {% if not promotion or promotion.discount_type == "percent" %}selected{% endif %}>Percentage</option>
+                    <option value="amount" {% if promotion and promotion.discount_type == "amount" %}selected{% endif %}>Fixed amount</option>
+                </select></label>
+                <label id="discount-value-field"><span id="discount-value-label">Discount percentage (%)</span><input type="number" name="discount_value" id="discount-value" min="1" max="100" step="1" value="{{ promotion.discount_value|int if promotion else '' }}" required></label>
+                <label>Applies to<select name="category_scope" id="category-scope">
+                    <option value="all" {% if selected_scope == "all" %}selected{% endif %}>All categories</option>
+                    <option value="specific" {% if selected_scope == "specific" %}selected{% endif %}>Specific categories</option>
+                </select></label>
+                <fieldset class="field-wide category-selection" id="category-selection" {% if selected_scope != "specific" %}hidden{% endif %}>
+                    <legend>Categories included</legend>
+                    <div class="category-checkboxes">
+                        {% for category in categories %}
+                            <label class="check-field">
+                                <input type="checkbox" name="category_ids" value="{{ category.id }}" {% if category.id in selected_category_ids %}checked{% endif %}>
+                                {{ category.name }}{% if not category.is_active %} (inactive){% endif %}{% if categories|selectattr("name", "equalto", category.name)|list|length > 1 %} · {{ category.slug }}{% endif %}
+                            </label>
+                        {% else %}
+                            <p class="muted">Create a category before making a category-specific offer.</p>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+                <label>Starts at (UTC)<input type="datetime-local" name="starts_at" value="{{ promotion.starts_at.strftime('%Y-%m-%dT%H:%M') if promotion else '' }}" required></label>
+                <label>Ends at (UTC)<input type="datetime-local" name="ends_at" value="{{ promotion.ends_at.strftime('%Y-%m-%dT%H:%M') if promotion else '' }}" required></label>
+                <fieldset class="field-wide offer-feature-selection">
+                    <legend>Choose audience features</legend>
+                    <p class="muted">Select the client criteria for this offer. Leave all unchecked to offer it to every client.</p>
+                    <div class="offer-feature-options">
+                        {% for value, label in [
+                            ("age", "Age"),
+                            ("gender", "Gender"),
+                            ("festival", "Festival campaign"),
+                            ("new_clients", "New clients"),
+                            ("orders", "Order count / most orders"),
+                            ("spend", "Lifetime spend / most spent"),
+                        ] %}
+                            <label class="check-field"><input type="checkbox" name="features" value="{{ value }}" data-feature-toggle="{{ value }}" {% if value in selected_features %}checked{% endif %}>{{ label }}</label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+                <div class="field-wide form-grid offer-feature-fields" data-feature-fields="age" {% if "age" not in selected_features %}hidden{% endif %}>
+                    <label>Minimum age<input type="number" name="minimum_age" min="13" max="120" value="{{ promotion.minimum_age if promotion and promotion.minimum_age is not none else '' }}"></label>
+                    <label>Maximum age<input type="number" name="maximum_age" min="13" max="120" value="{{ promotion.maximum_age if promotion and promotion.maximum_age is not none else '' }}"></label>
+                </div>
+                <div class="field-wide form-grid offer-feature-fields" data-feature-fields="gender" {% if "gender" not in selected_features %}hidden{% endif %}>
+                    <label>Client gender<select name="gender">
+                        <option value="">Choose gender</option>
+                        {% for option in ["Female", "Male", "Non-binary", "Other"] %}<option value="{{ option }}" {% if promotion and promotion.gender == option %}selected{% endif %}>{{ option }}</option>{% endfor %}
+                    </select></label>
+                </div>
+                <div class="field-wide form-grid offer-feature-fields" data-feature-fields="festival" {% if "festival" not in selected_features %}hidden{% endif %}>
+                    <label>Festival / campaign name<input name="festival_name" maxlength="80" value="{{ promotion.festival_name if promotion else '' }}" placeholder="e.g. Diwali"></label>
+                    <p class="muted field-wide">Festival is the offer campaign label; the start and end dates determine when it is available.</p>
+                </div>
+                <div class="field-wide form-grid offer-feature-fields" data-feature-fields="orders" {% if "orders" not in selected_features %}hidden{% endif %}>
+                    <label>Minimum completed orders<input type="number" name="minimum_orders" min="0" value="{{ promotion.minimum_orders if promotion and promotion.minimum_orders is not none else '' }}"></label>
+                    <label>Maximum completed orders<input type="number" name="maximum_orders" min="0" value="{{ promotion.maximum_orders if promotion and promotion.maximum_orders is not none else '' }}"></label>
+                </div>
+                <div class="field-wide form-grid offer-feature-fields" data-feature-fields="spend" {% if "spend" not in selected_features %}hidden{% endif %}>
+                    <label>Minimum lifetime spend (₹)<input type="number" name="minimum_spend" min="0" step="1" value="{{ promotion.minimum_spend|int if promotion and promotion.minimum_spend is not none else '' }}"></label>
+                        <label>Maximum lifetime spend (₹)<input type="number" name="maximum_spend" min="0" step="1" value="{{ promotion.maximum_spend|int if promotion and promotion.maximum_spend is not none else '' }}"></label>
+                </div>
+            </div>
+            <p class="muted">If a client qualifies for more than one active offer, the largest eligible discount is applied.</p>
+            <div class="inline-actions"><button class="btn-primary-custom" type="submit">Save offer</button><a href="{{ url_for('admin.promotions') }}">Cancel</a></div>
+        </form>
+        <script src="{{ url_for('static', filename='js/admin-promotion.js') }}" defer></script>
+    </div>
+</section>
+{% endblock %}

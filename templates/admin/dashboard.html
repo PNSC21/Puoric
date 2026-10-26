@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Admin dashboard | Puoric{% endblock %}
+{% block content %}
+<section class="section dashboard-section admin-dashboard">
+    <div class="container-custom">
+        <header class="page-heading"><p class="eyebrow">PUORIC ADMINISTRATION</p><h1>Dashboard</h1><p>Manage products, categories, and orders.</p></header>
+        {% set area = "admin" %}{% include "components/dashboard_nav.html" %}
+        <div class="dashboard-cards">
+            <a class="dashboard-card" href="{{ url_for('admin.products') }}"><span>Active products</span><strong>{{ product_count }}</strong></a>
+            <a class="dashboard-card" href="{{ url_for('admin.categories') }}"><span>Categories</span><strong>{{ category_count }}</strong></a>
+            <a class="dashboard-card" href="{{ url_for('admin.orders') }}"><span>Orders</span><strong>{{ order_count }}</strong></a>
+            <a class="dashboard-card" href="{{ url_for('admin.customers') }}"><span>Clients</span><strong>{{ customer_count }}</strong></a>
+            <a class="dashboard-card" href="{{ url_for('admin.orders') }}?status=Pending"><span>Pending orders</span><strong>{{ pending_count }}</strong></a>
+        </div>
+        <section class="dashboard-panel">
+            <div class="panel-heading"><h2>Recent orders</h2><a href="{{ url_for('admin.orders') }}">All orders</a></div>
+            {% if recent_orders %}
+                <div class="table-wrap"><table><thead><tr><th>Order</th><th>Client</th><th>Placed</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>
+                {% for order in recent_orders %}
+                    <tr><td>{{ order.order_number }}</td><td>{{ order.customer.full_name }}</td><td>{{ order.created_at.strftime("%d %b %Y") }}</td><td>{{ order.total_amount|currency }}</td><td><span class="status-pill">{{ order.order_status }}</span></td><td><a href="{{ url_for('admin.order_detail', order_id=order.id) }}">Manage</a></td></tr>
+                {% endfor %}
+                </tbody></table></div>
+            {% else %}<p class="empty-state">Orders will appear here when clients check out.</p>{% endif %}
+        </section>
+    </div>
+</section>
+{% endblock %}

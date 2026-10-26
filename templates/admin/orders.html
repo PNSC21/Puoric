@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Orders | Puoric admin{% endblock %}
+{% block content %}
+<section class="section dashboard-section">
+    <div class="container-custom">
+        <header class="page-heading"><p class="eyebrow">FULFILMENT</p><h1>Orders</h1><p>Review orders and update their progress.</p></header>
+        {% set area = "admin" %}{% include "components/dashboard_nav.html" %}
+        <form class="catalog-tools order-filters" method="get">
+            <select name="status" aria-label="Filter by order status">
+                <option value="">All statuses</option>
+                {% for status in order_statuses %}<option value="{{ status }}" {% if request.args.get("status") == status %}selected{% endif %}>{{ status }}</option>{% endfor %}
+            </select>
+            <button class="btn-outline-custom" type="submit">Filter orders</button>
+        </form>
+        <div class="dashboard-panel table-wrap">
+            <table><thead><tr><th>Order</th><th>Client</th><th>Placed</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>
+            {% for order in orders %}
+                <tr><td>{{ order.order_number }}</td><td>{{ order.customer.full_name }}<br><span class="muted">{{ order.customer.email }}</span></td><td>{{ order.created_at.strftime("%d %b %Y") }}</td><td>{{ order.total_amount|currency }}</td><td>{{ order.order_status }}</td><td><a href="{{ url_for('admin.order_detail', order_id=order.id) }}">Manage</a></td></tr>
+            {% else %}<tr><td colspan="6">No orders have been placed.</td></tr>{% endfor %}
+            </tbody></table>
+        </div>
+    </div>
+</section>
+{% endblock %}

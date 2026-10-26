@@ -1,0 +1,25 @@
+<nav class="dashboard-nav" aria-label="Dashboard navigation">
+    {% if area == "admin" %}
+        <a href="{{ url_for('admin.dashboard') }}">Overview</a>
+        <a href="{{ url_for('admin.products') }}">Products</a>
+        <a href="{{ url_for('admin.categories') }}">Categories</a>
+        <a href="{{ url_for('admin.orders') }}">Orders</a>
+        <a href="{{ url_for('admin.customers') }}">Clients</a>
+        <a href="{{ url_for('admin.promotions') }}">Offers</a>
+        <a href="{{ url_for('admin.settings') }}">Store settings</a>
+        <a href="{{ url_for('admin.profile') }}">Profile</a>
+        <a href="{{ url_for('admin.signup') }}">Add admin</a>
+        <form action="{{ url_for('admin.logout') }}" method="post">
+            <button type="submit">Sign out</button>
+        </form>
+    {% else %}
+        <a href="{{ url_for('customer.dashboard') }}">Overview</a>
+        <a href="{{ url_for('customer.orders') }}">Orders</a>
+        <a href="{{ url_for('customer.addresses') }}">Addresses</a>
+        <a href="{{ url_for('customer.profile') }}">Profile</a>
+        <a href="{{ url_for('customer.cart') }}">Cart</a>
+        <form action="{{ url_for('customer.logout') }}" method="post">
+            <button type="submit">Sign out</button>
+        </form>
+    {% endif %}
+</nav>

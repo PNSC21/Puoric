@@ -1,4 +1,4 @@
-<section class="section philosophy-section">
+<section class="section philosophy-section" id="philosophy">
 
     <div class="container-custom">
 
@@ -24,7 +24,7 @@
 
                 <div class="image-box">
 
-                    <img src="{{ url_for('static', filename='images/about/about.jpg') }}" alt="Puoric Beauty">
+                    <img src="{{ url_for('static', filename='images/about.png') }}" alt="Puoric Beauty">
 
                 </div>
 
@@ -74,9 +74,9 @@
 
                 </div>
 
-                <a href="#" class="btn-primary-custom">
+                <a href="{{ url_for('store.catalog') }}" class="btn-primary-custom">
 
-                    Learn More
+                    Shop Products
 
                     <i class="bi bi-arrow-right ms-2"></i>
 

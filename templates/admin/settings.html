@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Store settings | Puoric admin{% endblock %}
+{% block content %}
+<section class="section dashboard-section">
+    <div class="container-custom">
+        <header class="page-heading">
+            <p class="eyebrow">STORE CONFIGURATION</p>
+            <h1>Payment settings</h1>
+            <p>Add the store's UPI ID to enable UPI QR payment at checkout.</p>
+        </header>
+        {% set area = "admin" %}{% include "components/dashboard_nav.html" %}
+        <form class="form-card form-card-narrow" method="post">
+            <label>Store UPI ID
+                <input
+                    type="text"
+                    name="upi_id"
+                    value="{{ upi_id }}"
+                    maxlength="255"
+                    autocomplete="off"
+                    placeholder="yourname@bank"
+                    aria-describedby="upi-help"
+                >
+            </label>
+            <p class="muted" id="upi-help">
+                Clients will pay this UPI ID using an order-specific QR code.
+                Leave it blank to disable UPI QR checkout.
+            </p>
+            <button class="btn-primary-custom" type="submit">Save UPI ID</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

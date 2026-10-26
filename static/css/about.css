@@ -10,7 +10,8 @@
 
 .section-tag{
     display:inline-block;
-    background:#efe7ff;
+    background:#FFF9C4;
+    border:1px solid var(--accent);
     color:var(--primary);
     padding:10px 20px;
     border-radius:50px;

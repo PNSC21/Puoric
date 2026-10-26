@@ -1,6 +1,6 @@
 from database.db import db
+from decimal import Decimal, ROUND_HALF_UP
 from database.models.base import BaseModel
-from sqlalchemy import Numeric
 
 class Product(BaseModel):
 
@@ -68,6 +68,16 @@ class Product(BaseModel):
         db.Numeric(10, 2)
     )
 
+    discount_type = db.Column(
+        db.String(12),
+        nullable=False,
+        default="none",
+    )
+
+    discount_value = db.Column(
+        db.Numeric(10, 2),
+    )
+
     stock = db.Column(
         db.Integer,
         default=0,
@@ -107,5 +117,43 @@ class Product(BaseModel):
         lazy=True
     )
 
+    characteristics = db.relationship(
+        "ProductCharacteristic",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        lazy=True
+    )
+
+    variants = db.relationship(
+        "ProductVariant",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        lazy=True
+    )
+
     def __repr__(self):
         return f"<Product {self.name}>"
+
+    @property
+    def available_stock(self):
+        if self.variants:
+            return sum(
+                variant.stock for variant in self.variants if variant.is_active
+            )
+        return self.stock
+
+    @property
+    def low_stock(self):
+        return 0 < self.available_stock <= self.low_stock_limit
+
+    def sale_price(self, price=None):
+        regular_price = Decimal(price if price is not None else self.price)
+        if self.discount_type == "percent" and self.discount_value:
+            amount = regular_price * Decimal(self.discount_value) / Decimal("100")
+        elif self.discount_type == "amount" and self.discount_value:
+            amount = Decimal(self.discount_value)
+        else:
+            return regular_price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return (regular_price - amount).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}My addresses | Puoric{% endblock %}
+{% block content %}
+<section class="section dashboard-section customer-dashboard">
+    <div class="container-custom">
+        <header class="page-heading"><p class="eyebrow">CLIENT ACCOUNT</p><h1>Addresses</h1><p>Save delivery addresses for checkout.</p></header>
+        {% set area = "customer" %}{% include "components/dashboard_nav.html" %}
+        <div class="address-layout">
+            <form class="form-card" method="post">
+                <h2>Add an address</h2>
+                <div class="form-grid">{% include "components/address_fields.html" %}</div>
+                <button class="btn-primary-custom" type="submit">Save address</button>
+            </form>
+            <div class="address-list">
+                {% for address in addresses %}
+                    <article class="dashboard-panel address-card">
+                        <div><h2>{{ address.full_name }}{% if address.is_default %}<span class="status-pill">Default</span>{% endif %}</h2><p>{{ address.phone }}</p><p>{{ address.formatted }}</p></div>
+                        <div class="inline-actions">
+                            {% if not address.is_default %}<form method="post" action="{{ url_for('customer.set_default_address', address_id=address.id) }}"><button class="btn-outline-custom" type="submit">Make default</button></form>{% endif %}
+                            <form method="post" action="{{ url_for('customer.delete_address', address_id=address.id) }}"><button class="text-button" type="submit">Remove</button></form>
+                        </div>
+                    </article>
+                {% else %}
+                    <p class="empty-state">No saved addresses yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

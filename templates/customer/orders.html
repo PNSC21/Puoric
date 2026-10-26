@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}My orders | Puoric{% endblock %}
+{% block content %}
+<section class="section dashboard-section customer-dashboard">
+    <div class="container-custom">
+        <header class="page-heading"><p class="eyebrow">CLIENT ACCOUNT</p><h1>Orders</h1><p>Follow the progress of your purchases.</p></header>
+        {% set area = "customer" %}{% include "components/dashboard_nav.html" %}
+        <div class="dashboard-panel">
+            {% if orders %}
+                <div class="table-wrap"><table><thead><tr><th>Order</th><th>Placed</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>
+                {% for order in orders %}
+                    <tr><td>{{ order.order_number }}</td><td>{{ order.created_at.strftime("%d %b %Y") }}</td><td>{{ order.total_amount|currency }}</td><td><span class="status-pill">{{ order.order_status }}</span></td><td><a href="{{ url_for('customer.order_detail', order_id=order.id) }}">Track</a></td></tr>
+                {% endfor %}
+                </tbody></table></div>
+            {% else %}<p class="empty-state">No orders yet. <a href="{{ url_for('store.catalog') }}">Browse products</a></p>{% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

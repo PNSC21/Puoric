@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}My account | Puoric{% endblock %}
+{% block content %}
+<section class="section dashboard-section customer-dashboard">
+    <div class="container-custom">
+        <header class="page-heading">
+            <p class="eyebrow">YOUR ACCOUNT</p>
+            <h1>Hello, {{ account.full_name }}</h1>
+            <p>Keep track of your orders and delivery details.</p>
+        </header>
+        {% set area = "customer" %}{% include "components/dashboard_nav.html" %}
+        <div class="dashboard-cards">
+            <a class="dashboard-card" href="{{ url_for('customer.orders') }}"><span>Orders</span><strong>{{ account.orders|length }}</strong></a>
+            <a class="dashboard-card" href="{{ url_for('customer.addresses') }}"><span>Saved addresses</span><strong>{{ account.addresses|length }}</strong></a>
+            <a class="dashboard-card" href="{{ url_for('customer.cart') }}"><span>Cart items</span><strong>{{ cart_count }}</strong></a>
+        </div>
+        <section class="dashboard-panel">
+            <div class="panel-heading"><h2>Recent orders</h2><a href="{{ url_for('customer.orders') }}">View all</a></div>
+            {% if orders %}
+                <div class="table-wrap"><table><thead><tr><th>Order</th><th>Date</th><th>Total</th><th>Status</th></tr></thead><tbody>
+                {% for order in orders %}
+                    <tr><td><a href="{{ url_for('customer.order_detail', order_id=order.id) }}">{{ order.order_number }}</a></td><td>{{ order.created_at.strftime("%d %b %Y") }}</td><td>{{ order.total_amount|currency }}</td><td>{{ order.order_status }}</td></tr>
+                {% endfor %}
+                </tbody></table></div>
+            {% else %}
+                <p class="empty-state">Your orders will appear here after checkout.</p>
+            {% endif %}
+        </section>
+    </div>
+</section>
+{% endblock %}

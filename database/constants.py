@@ -7,16 +7,18 @@ ORDER_STATUS = (
     "Cancelled"
 )
 
+ORDER_STATUS_TRANSITIONS = {
+    "Pending": ("Confirmed", "Cancelled"),
+    "Confirmed": ("Packed", "Cancelled"),
+    "Packed": ("Shipped", "Cancelled"),
+    "Shipped": ("Delivered", "Cancelled"),
+    "Delivered": (),
+    "Cancelled": (),
+}
+
 PAYMENT_STATUS = (
     "Pending",
     "Paid",
     "Failed",
     "Refunded"
-)
-
-SHIPPING_STATUS = (
-    "Pending",
-    "Packed",
-    "Shipped",
-    "Delivered"
 )

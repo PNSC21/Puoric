@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Categories | Puoric admin{% endblock %}
+{% block content %}
+<section class="section dashboard-section">
+    <div class="container-custom">
+        <header class="page-heading page-heading-row"><div><p class="eyebrow">CATALOGUE</p><h1>Categories</h1></div><a class="btn-primary-custom" href="{{ url_for('admin.category_new') }}">Add category</a></header>
+        {% set area = "admin" %}{% include "components/dashboard_nav.html" %}
+        <div class="dashboard-panel table-wrap">
+            <table><thead><tr><th>Name</th><th>Products</th><th>Tags</th><th>Order</th><th>Visibility</th><th></th></tr></thead><tbody>
+            {% for category in categories %}
+                <tr>
+                    <td>{% if category.image %}<img class="category-thumbnail" src="{{ url_for('static', filename=category.image) }}" alt="">{% endif %}<strong>{{ category.name }}</strong><br><span class="muted">{{ category.slug }}</span></td>
+                    <td>{{ category.products|length }}</td><td>{{ category.characteristic_tags|length }}</td><td>{{ category.display_order }}</td><td>{{ "Active" if category.is_active else "Hidden" }}</td>
+                    <td class="inline-actions">
+                        <a href="{{ url_for('admin.category_edit', category_id=category.id) }}">Edit</a>
+                        <form method="post" action="{{ url_for('admin.category_toggle', category_id=category.id) }}"><button class="text-button" type="submit">{{ "Deactivate" if category.is_active else "Activate" }}</button></form>
+                        <form method="post" action="{{ url_for('admin.category_delete', category_id=category.id) }}" onsubmit="return confirm('Delete this category? Categories with products will be deactivated to preserve catalogue and order history.');"><button class="text-button" type="submit">Delete</button></form>
+                    </td>
+                </tr>
+            {% else %}<tr><td colspan="6">No categories yet.</td></tr>{% endfor %}
+            </tbody></table>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -8,8 +8,7 @@ class Category(BaseModel):
 
     name = db.Column(
         db.String(100),
-        nullable=False,
-        unique=True
+        nullable=False
     )
 
     slug = db.Column(
@@ -44,6 +43,28 @@ class Category(BaseModel):
         "Product",
         back_populates="category",
         lazy=True
+    )
+
+    characteristic_tags = db.relationship(
+        "CategoryCharacteristic",
+        back_populates="category",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="CategoryCharacteristic.name",
+    )
+
+    variant_types = db.relationship(
+        "CategoryVariantType",
+        back_populates="category",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="CategoryVariantType.name",
+    )
+
+    promotions = db.relationship(
+        "Promotion",
+        secondary="promotion_categories",
+        back_populates="categories",
     )
 
     def __repr__(self):

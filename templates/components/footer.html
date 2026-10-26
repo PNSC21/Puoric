@@ -1,4 +1,4 @@
-<footer class="footer">
+<footer class="footer" id="contact">
 
     <div class="container-custom">
 
@@ -24,11 +24,13 @@
 
                     <li><a href="/">Home</a></li>
 
-                    <li><a href="#">Products</a></li>
+                    <li><a href="{{ url_for('store.catalog') }}">Products</a></li>
 
-                    <li><a href="#">Beauty Advisor</a></li>
+                    {% if not customer_id and not admin_id %}
+                        <li><a href="{{ url_for('customer.login') }}">Client account</a></li>
+                    {% endif %}
 
-                    <li><a href="#">Contact</a></li>
+                    <li><a href="{{ url_for('home.index') }}#contact">Contact</a></li>
 
                 </ul>
 
@@ -73,6 +75,12 @@
             </div>
 
         </div>
+
+        {% if not customer_id and not admin_id %}
+            <p class="footer-admin-link">
+                <a href="{{ url_for('admin.login') }}">Admin sign in</a>
+            </p>
+        {% endif %}
 
         <hr>
 

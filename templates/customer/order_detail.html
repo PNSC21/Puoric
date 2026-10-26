@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Order {{ order.order_number }} | Puoric{% endblock %}
+{% block content %}
+<section class="section dashboard-section customer-dashboard">
+    <div class="container-custom">
+        <header class="page-heading"><p class="eyebrow">ORDER TRACKING</p><h1>{{ order.order_number }}</h1><p>Placed {{ order.created_at.strftime("%d %b %Y") }}</p></header>
+        {% set area = "customer" %}{% include "components/dashboard_nav.html" %}
+        <div class="order-detail-grid">
+            <section class="dashboard-panel">
+                {% if order.payment_method == "UPI QR" and order.payment_status != "Paid" %}
+                    <div class="payment-instructions">
+                        <h2>Complete your UPI payment</h2>
+                        {% if payment_qr %}
+                            <img class="upi-qr-code" src="{{ payment_qr }}" alt="UPI payment QR code for order {{ order.order_number }}">
+                            <p>Scan to pay <strong>{{ order.total_amount|currency }}</strong> to the store for this order.</p>
+                            <p class="muted">The QR pre-fills the store, amount, currency, and order reference. Check these details in your UPI app before confirming. Payment stays pending until the store verifies it.</p>
+                        {% else %}
+                            <p class="muted">The store's UPI payment details are not available right now. Contact the store before paying.</p>
+                        {% endif %}
+                    </div>
+                {% elif order.payment_method == "UPI QR" %}
+                    <p class="payment-confirmed">UPI payment verified by the store.</p>
+                {% endif %}
+                <h2>Progress</h2>
+                {% set statuses = ["Pending", "Confirmed", "Packed", "Shipped", "Delivered"] %}
+                {% set progress = namespace(index=0) %}
+                {% if order.order_status in statuses %}{% set progress.index = statuses.index(order.order_status) %}{% endif %}
+                <ol class="order-progress">
+                    {% for status in statuses %}
+                        <li class="{% if status == order.order_status %}current{% elif loop.index0 < progress.index %}complete{% endif %}">{{ status }}</li>
+                    {% endfor %}
+                </ol>
+                <p>Current status: <strong>{{ order.order_status }}</strong></p>
+                {% if order.payment_method == "Cash on delivery" %}
+                    {% if order.payment_status == "Paid" %}
+                        <p class="payment-confirmed">Delivery and cash payment were verified by the store.</p>
+                    {% else %}
+                        <p>Cash on delivery: <strong>{{ order.total_amount|currency }}</strong>.</p>
+                    {% endif %}
+                {% endif %}
+                {% if order.order_status == "Shipped" %}
+                    {% if order.payment_method == "Cash on delivery" and order.payment_status != "Paid" %}
+                        <p class="muted">The store will send a one-time receipt code to your delivery phone. Check your order and pay the delivery person before sharing the code; it confirms delivery and cash payment.</p>
+                    {% else %}
+                        <p class="muted">The store will send a one-time receipt code to your delivery phone. Check that the order is correct before sharing the code with the store to confirm receipt. Payment status is handled separately.</p>
+                    {% endif %}
+                {% endif %}
+                {% if order.order_status == "Cancelled" %}<p>This order was cancelled.</p>{% endif %}
+                {% if order.admin_note %}<p>{{ order.admin_note }}</p>{% endif %}
+            </section>
+            <section class="dashboard-panel">
+                {% if order.order_status == "Pending" and order.shipping_status == "Pending" and order.payment_status == "Pending" %}
+                    <h2>Send order details</h2>
+                    {% if whatsapp_order_url %}
+                        <p>Send your complete order and delivery details to Puoric on WhatsApp.</p>
+                        <a class="btn-primary-custom" href="{{ whatsapp_order_url }}" target="_blank" rel="noopener noreferrer">
+                            Open WhatsApp and send order
+                        </a>
+                        <p class="muted">WhatsApp opens with the message ready. Review it and tap Send.</p>
+                    {% else %}
+                        <p class="muted">The store's WhatsApp number is not configured.</p>
+                    {% endif %}
+                {% endif %}
+                <h2>Delivery address</h2><p>{{ order.shipping_name }}<br>{{ order.shipping_phone }}<br>{{ order.shipping_address }}</p>
+                <h2>Items</h2>
+                {% for item in order.order_items %}<p>{{ item.product.name }}{% if item.variant %} · {{ item.variant.name }}: {{ item.variant.value }}{% if item.variant.name|lower == 'weight' and item.variant.unit %} {{ item.variant.unit }}{% endif %}{% endif %} × {{ item.quantity }} <strong>{{ item.subtotal|currency }}</strong></p>{% endfor %}
+                <hr><p>Payment: {{ order.payment_method }} · {{ order.payment_status }}</p>
+                <p>Subtotal <strong>{{ order.subtotal_amount|currency }}</strong></p>
+                {% if order.discount_amount %}<p>{{ order.promotion_name }} <strong>−{{ order.discount_amount|currency }}</strong></p>{% endif %}
+                <p class="total-line"><strong>Total</strong><strong>{{ order.total_amount|currency }}</strong></p>
+            </section>
+        </div>
+    </div>
+</section>
+{% endblock %}

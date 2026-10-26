@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Client sign in | Puoric{% endblock %}
+{% block content %}
+<section class="section auth-section">
+    <form class="form-card form-card-narrow customer-auth" method="post">
+        <p class="eyebrow">WELCOME BACK</p>
+        <h1>Client sign in</h1>
+        <p>View your orders and saved addresses.</p>
+        <label>Email<input type="email" name="email" required autocomplete="email"></label>
+        <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
+        <button class="btn-primary-custom" type="submit">Sign in</button>
+        <p class="form-footnote">New to Puoric? <a href="{{ url_for('customer.signup') }}">Create an account</a></p>
+    </form>
+</section>
+{% endblock %}

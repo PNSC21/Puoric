@@ -2,8 +2,12 @@
 @import url("base.css");
 @import url("navbar.css");
 @import url("footer.css");
-@import url("home.css");
-@import url("responsive.css");
+@import url("hero.css");
 @import url("about.css");
 @import url("why_choose_us.css");
 @import url("beauty_journey.css");
+@import url("dashboard.css");
+@import url("admin/dashboard.css");
+@import url("customer/dashboard.css");
+@import url("home.css");
+@import url("responsive.css");

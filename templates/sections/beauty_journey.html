@@ -4,7 +4,7 @@
 
         <div class="journey-card">
 
-            <span class="section-tag">
+            <span class="section-tag journey-tag">
                 START YOUR JOURNEY
             </span>
 
@@ -18,13 +18,13 @@
 
             <div class="journey-buttons">
 
-                <a href="#" class="btn-primary-custom">
+                <a href="{{ url_for('store.catalog') }}" class="btn-primary-custom">
                     Explore Products
                     <i class="bi bi-arrow-right ms-2"></i>
                 </a>
 
-                <a href="#" class="btn-outline-custom">
-                    Beauty Advisor
+                <a href="{{ url_for('customer.signup') }}" class="btn-outline-custom">
+                    Create Client Account
                     <i class="bi bi-stars ms-2"></i>
                 </a>
 

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Create client account | Puoric{% endblock %}
+{% block content %}
+<section class="section auth-section">
+    <form class="form-card customer-auth" method="post">
+        <p class="eyebrow">CLIENT ACCOUNT</p>
+        <h1>Create your account</h1>
+        <p>Use your account to manage addresses and track orders.</p>
+        <div class="form-grid">
+            <label class="field-wide">Full name<input name="full_name" maxlength="120" required autocomplete="name"></label>
+            <label>Email<input type="email" name="email" maxlength="120" required autocomplete="email"></label>
+            <label>Phone<input name="phone" maxlength="15" required autocomplete="tel"></label>
+            <label>Password<input type="password" name="password" minlength="10" required autocomplete="new-password"></label>
+            <label>Age<input type="number" name="age" min="13" max="120"></label>
+            <label>Gender<select name="gender"><option value="">Prefer not to say</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Other</option></select></label>
+            <label>Skin type<input name="skin_type" maxlength="80" placeholder="Optional"></label>
+            <label class="field-wide">Allergies<textarea name="allergies" rows="2" maxlength="2000" placeholder="Optional"></textarea></label>
+            <label class="field-wide">Address<input name="address_line1" maxlength="255" required autocomplete="street-address"></label>
+            <label>City<input name="city" maxlength="80" required autocomplete="address-level2"></label>
+            <label>State<input name="state" maxlength="80" required autocomplete="address-level1"></label>
+            <label>Country<input name="country" maxlength="80" value="India" required autocomplete="country-name"></label>
+            <label>PIN code<input name="pincode" maxlength="10" required autocomplete="postal-code"></label>
+        </div>
+        <button class="btn-primary-custom" type="submit">Create account</button>
+        <p class="form-footnote">Already registered? <a href="{{ url_for('customer.login') }}">Sign in</a></p>
+    </form>
+</section>
+{% endblock %}

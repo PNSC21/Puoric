@@ -1,27 +1,31 @@
 :root{
 
-    --primary:#7C3AED;
-    --primary-dark:#6530cb;
+    --primary:#0B3D38;
+    --primary-dark:#072E2A;
 
-    --secondary:#EC4899;
+    --secondary:#32744E;
 
-    --accent:#F59E0B;
+    --accent:#E9C928;
 
-    --success:#22C55E;
+    --rose:#D96E79;
+
+    --blush:#FFF0ED;
+
+    --success:#32744E;
 
     --danger:#EF4444;
 
-    --background:#FFF8F6;
+    --background:#FBF8F3;
 
     --surface:#FFFFFF;
 
-    --text:#252525;
+    --text:#18332F;
 
-    --text-light:#707070;
+    --text-light:#66736F;
 
-    --border:#ECECEC;
+    --border:#DCE7E2;
 
-    --shadow:0 12px 30px rgba(0,0,0,.08);
+    --shadow:0 12px 30px rgba(11,61,56,.08);
 
     --radius:18px;
 
