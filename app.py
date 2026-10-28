@@ -28,8 +28,17 @@ def create_app(config_object=Config):
 
     @app.context_processor
     def inject_site():
+        public_site = site.copy()
+        public_site.update({
+            "email": app.config.get("STORE_EMAIL") or public_site["email"],
+            "phone": app.config.get("STORE_PHONE") or public_site["phone"],
+            "whatsapp": app.config.get("STORE_WHATSAPP_NUMBER") or public_site["whatsapp"],
+            "address": app.config.get("STORE_ADDRESS") or public_site["address"],
+            "instagram": app.config.get("STORE_INSTAGRAM_URL") or public_site["instagram"],
+            "facebook": app.config.get("STORE_FACEBOOK_URL") or public_site["facebook"],
+        })
         return {
-            "site": site,
+            "site": public_site,
             "customer_id": session.get("customer_id"),
             "admin_id": session.get("admin_id"),
             "cart_count": sum(session.get("cart", {}).values()),
