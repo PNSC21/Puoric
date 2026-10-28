@@ -5,8 +5,8 @@
     <div class="container-custom">
         <header class="page-heading">
             <p class="eyebrow">STORE CONFIGURATION</p>
-            <h1>Payment settings</h1>
-            <p>Add the store's UPI ID to enable UPI QR payment at checkout.</p>
+            <h1>Payment & delivery settings</h1>
+            <p>Set the UPI account, regional shipping fees and free-shipping threshold.</p>
         </header>
         {% set area = "admin" %}{% include "components/dashboard_nav.html" %}
         <form class="form-card form-card-narrow" method="post">
@@ -25,7 +25,28 @@
                 Clients will pay this UPI ID using an order-specific QR code.
                 Leave it blank to disable UPI QR checkout.
             </p>
-            <button class="btn-primary-custom" type="submit">Save UPI ID</button>
+            <h2>Shipping charges</h2>
+            <p class="muted">Set the store's dispatch location. Customer addresses in the same state use the within-state fee; other addresses in the same country use the within-country fee. All others use the international fee.</p>
+            <label>Ships from state / region
+                <input type="text" name="store_state" maxlength="80" value="{{ shipping.state }}" required>
+            </label>
+            <label>Ships from country
+                <input type="text" name="store_country" maxlength="80" value="{{ shipping.country }}" required>
+            </label>
+            <label>Within {{ shipping.state }} (₹)
+                <input type="number" name="shipping_within_state" min="0" step="1" value="{{ shipping.within_state|int }}" required>
+            </label>
+            <label>Other {{ shipping.country }} (₹)
+                <input type="number" name="shipping_within_country" min="0" step="1" value="{{ shipping.within_country|int }}" required>
+            </label>
+            <label>Outside {{ shipping.country }} (₹)
+                <input type="number" name="shipping_out_of_country" min="0" step="1" value="{{ shipping.out_of_country|int }}" required>
+            </label>
+            <label>Free shipping from merchandise subtotal (₹)
+                <input type="number" name="free_shipping_threshold" min="0" step="1" value="{{ shipping.free_shipping_threshold|int if shipping.free_shipping_threshold else '' }}">
+            </label>
+            <p class="muted">Leave the free-shipping threshold blank to always use the regional charge. At or above the threshold, shipping is free. The threshold is checked against the merchandise subtotal before discounts.</p>
+            <button class="btn-primary-custom" type="submit">Save settings</button>
         </form>
     </div>
 </section>

@@ -18,18 +18,20 @@ def run_migrations():
         "orders": {
             "shipping_name": "VARCHAR(120) NOT NULL DEFAULT ''",
             "shipping_phone": "VARCHAR(20) NOT NULL DEFAULT ''",
+            "shipping_state": "VARCHAR(80) NOT NULL DEFAULT ''",
+            "shipping_country": "VARCHAR(80) NOT NULL DEFAULT ''",
             "shipping_address": "TEXT NOT NULL DEFAULT ''",
             "subtotal_amount": "NUMERIC(10, 2) NOT NULL DEFAULT 0",
             "discount_amount": "NUMERIC(10, 2) NOT NULL DEFAULT 0",
+            "shipping_amount": "NUMERIC(10, 2) NOT NULL DEFAULT 0",
             "promotion_id": "INTEGER REFERENCES promotions(id)",
             "promotion_name": "VARCHAR(120)",
-            "delivery_code_hash": "VARCHAR(255)",
-            "delivery_code_sent_at": "DATETIME",
-            "delivery_code_attempts": "INTEGER NOT NULL DEFAULT 0",
         },
         "promotions": {
+            "target_scope": "VARCHAR(12) NOT NULL DEFAULT 'all'",
             "applies_to_all_categories": "BOOLEAN NOT NULL DEFAULT 1",
             "festival_name": "VARCHAR(80)",
+            "minimum_order_amount": "NUMERIC(10, 2)",
         },
         "order_items": {
             "variant_id": "INTEGER REFERENCES product_variants(id)",
@@ -58,6 +60,12 @@ def run_migrations():
             connection.exec_driver_sql(
                 "UPDATE orders SET subtotal_amount = total_amount "
                 "WHERE subtotal_amount = 0 AND discount_amount = 0"
+            )
+        if "promotions" in table_names:
+            connection.exec_driver_sql(
+                "UPDATE promotions SET target_scope = 'categories' "
+                "WHERE applies_to_all_categories = 0 "
+                "AND target_scope = 'all'"
             )
         if "account_emails" in table_names:
             if "customers" in table_names:
@@ -171,7 +179,6 @@ def run_migrations():
                         slug VARCHAR(120) NOT NULL UNIQUE,
                         description TEXT,
                         image VARCHAR(255),
-                        display_order INTEGER NOT NULL,
                         is_active BOOLEAN NOT NULL,
                         id INTEGER NOT NULL PRIMARY KEY,
                         created_at DATETIME NOT NULL,
@@ -181,9 +188,12 @@ def run_migrations():
                 )
                 cursor.execute(
                     """
-                    INSERT INTO categories_replacement
-                    SELECT name, slug, description, image, display_order,
-                        is_active, id, created_at, updated_at
+                    INSERT INTO categories_replacement (
+                        name, slug, description, image, is_active, id,
+                        created_at, updated_at
+                    )
+                    SELECT name, slug, description, image, is_active, id,
+                        created_at, updated_at
                     FROM categories
                     """
                 )

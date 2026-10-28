@@ -21,6 +21,7 @@ from services.forms import form_value
 from services.promotions import promotion_quote
 from services.payments import upi_qr_data
 from services.store_settings import get_setting
+from services.shipping import shipping_quote
 from services.site_data import site
 from services.whatsapp import order_whatsapp_url
 
@@ -419,22 +420,42 @@ def checkout():
     subtotal = sum((line["subtotal"] for line in lines), Decimal("0.00"))
     account = db.session.get(Customer, account_id)
     quote = promotion_quote(account, lines)
+    shipping_quotes = {
+        address.id: shipping_quote(address, subtotal)
+        for address in address_list
+    }
+    requested_address_id = request.values.get("address_id", type=int)
+    selected_address_id = (
+        requested_address_id
+        if requested_address_id in shipping_quotes
+        else address_list[0].id if address_list else None
+    )
+    selected_shipping = (
+        shipping_quotes[selected_address_id]
+        if selected_address_id is not None
+        else {"amount": Decimal("0.00"), "region": "within_state"}
+    )
+    order_total = quote["total"] + selected_shipping["amount"]
     upi_enabled = (
         bool(get_setting("upi_payee_id", "UPI_PAYEE_ID"))
-        and quote["total"] > 0
+        and order_total > 0
     )
     upi_unavailable_reason = (
         "UPI QR is not available for a zero-value order."
-        if quote["total"] <= 0
+        if order_total <= 0
         else "UPI QR payment is not available until the store configures its UPI ID."
     )
     if request.method == "POST":
-        payment_method = request.form.get("payment_method", "Cash on delivery")
-        if payment_method not in {"Cash on delivery", "UPI QR"}:
-            flash("Choose a valid payment method.", "error")
+        payment_method = request.form.get("payment_method", "UPI QR")
+        if payment_method != "UPI QR":
+            flash("Only prepaid UPI QR orders are available.", "error")
             return redirect(url_for("customer.checkout"))
         if payment_method == "UPI QR" and not upi_enabled:
-            flash("UPI QR payments are not set up yet. Choose cash on delivery.", "error")
+            flash(
+                "UPI QR checkout is not available. Check the store's payment "
+                "settings or choose an address with a payable order total.",
+                "error",
+            )
             return redirect(url_for("customer.checkout"))
         address = CustomerAddress.query.filter_by(
             id=request.form.get("address_id"), customer_id=account_id
@@ -445,13 +466,20 @@ def checkout():
                 "customer/checkout.html", lines=lines, addresses=address_list,
                 subtotal=subtotal, quote=quote, upi_enabled=upi_enabled,
                 upi_unavailable_reason=upi_unavailable_reason,
+                shipping_quotes=shipping_quotes,
+                selected_address_id=selected_address_id,
+                selected_shipping=selected_shipping,
+                order_total=order_total,
             )
+        selected_shipping = shipping_quote(address, subtotal)
+        order_total = quote["total"] + selected_shipping["amount"]
         order = Order(
             customer_id=account_id,
             order_number=f"PU-{token_hex(5).upper()}",
             subtotal_amount=subtotal,
             discount_amount=quote["discount"],
-            total_amount=quote["total"],
+            shipping_amount=selected_shipping["amount"],
+            total_amount=order_total,
             promotion_id=quote["promotion"].id if quote["promotion"] else None,
             promotion_name=quote["promotion"].name if quote["promotion"] else None,
             payment_method=payment_method,
@@ -461,6 +489,8 @@ def checkout():
             customer_note=request.form.get("customer_note", "").strip()[:1000] or None,
             shipping_name=address.full_name,
             shipping_phone=address.phone,
+            shipping_state=address.state,
+            shipping_country=address.country,
             shipping_address=address.formatted,
         )
         try:
@@ -508,6 +538,10 @@ def checkout():
         "customer/checkout.html", lines=lines, addresses=address_list,
         subtotal=subtotal, quote=quote, upi_enabled=upi_enabled,
         upi_unavailable_reason=upi_unavailable_reason,
+        shipping_quotes=shipping_quotes,
+        selected_address_id=selected_address_id,
+        selected_shipping=selected_shipping,
+        order_total=order_total,
     )
 
 
@@ -527,18 +561,56 @@ def order_detail(order_id):
         id=order_id, customer_id=session["customer_id"]
     ).first_or_404()
     payment_qr = None
-    if order.payment_method == "UPI QR" and order.payment_status != "Paid":
+    if (
+        order.payment_method == "UPI QR"
+        and order.payment_status in {"Pending", "Failed"}
+    ):
         payment_qr = upi_qr_data(
             order,
             get_setting("upi_payee_id", "UPI_PAYEE_ID"),
             current_app.config.get("UPI_PAYEE_NAME", "Puoric"),
         )
+    refund_due = Decimal("0.00")
+    if (
+        order.payment
+        and order.payment_status == "Paid"
+        and order.order_status == "Cancelled"
+        and order.shipping_status != "Shipped"
+        and order.payment.amount > order.total_amount
+    ):
+        refund_due = Decimal(order.payment.amount) - Decimal(order.total_amount)
     return render_template(
         "customer/order_detail.html",
         order=order,
+        refund_due=refund_due,
         payment_qr=payment_qr,
         whatsapp_order_url=order_whatsapp_url(
             order, current_app.config.get("STORE_WHATSAPP_NUMBER")
             or site["whatsapp"]
         ),
     )
+
+
+@customer.route("/orders/<int:order_id>/received", methods=["POST"])
+@require_customer
+def confirm_order_received(order_id):
+    order = Order.query.filter_by(
+        id=order_id, customer_id=session["customer_id"]
+    ).first_or_404()
+    if order.order_status == "Delivered":
+        flash("You already confirmed receipt of this parcel.", "info")
+    elif (
+        order.order_status != "Shipped"
+        or order.shipping_status != "Shipped"
+        or order.payment_status != "Paid"
+    ):
+        flash(
+            "You can confirm receipt after payment is verified and the order is shipped.",
+            "error",
+        )
+    else:
+        order.order_status = "Delivered"
+        order.shipping_status = "Delivered"
+        db.session.commit()
+        flash("Thanks for confirming that you received your parcel.", "success")
+    return redirect(url_for("customer.order_detail", order_id=order.id))

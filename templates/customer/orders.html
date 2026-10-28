@@ -7,9 +7,22 @@
         {% set area = "customer" %}{% include "components/dashboard_nav.html" %}
         <div class="dashboard-panel">
             {% if orders %}
-                <div class="table-wrap"><table><thead><tr><th>Order</th><th>Placed</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>
+                <div class="table-wrap"><table><thead><tr><th>Order</th><th>Summary</th><th>Placed</th><th>Payment</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>
                 {% for order in orders %}
-                    <tr><td>{{ order.order_number }}</td><td>{{ order.created_at.strftime("%d %b %Y") }}</td><td>{{ order.total_amount|currency }}</td><td><span class="status-pill">{{ order.order_status }}</span></td><td><a href="{{ url_for('customer.order_detail', order_id=order.id) }}">Track</a></td></tr>
+                    <tr>
+                        <td>{{ order.order_number }}</td>
+                        <td>
+                            {% for item in order.order_items %}
+                                {{ item.product.name }}{% if item.variant %} ({{ item.variant.name }}: {{ item.variant.value }}){% endif %} × {{ item.quantity }}{% if not loop.last %}<br>{% endif %}
+                            {% endfor %}
+                            <br><small class="muted">Items {{ order.subtotal_amount|currency }}{% if order.discount_amount %} · Discount −{{ order.discount_amount|currency }}{% endif %} · Shipping {{ order.shipping_amount|currency }}</small>
+                        </td>
+                        <td>{{ order.created_at.strftime("%d %b %Y") }}</td>
+                        <td><span class="status-pill">{{ order.payment_status }}</span></td>
+                        <td>{{ order.total_amount|currency }}</td>
+                        <td><span class="status-pill">{{ "Received" if order.order_status == "Delivered" else order.order_status }}</span></td>
+                        <td><a href="{{ url_for('customer.order_detail', order_id=order.id) }}">Track</a></td>
+                    </tr>
                 {% endfor %}
                 </tbody></table></div>
             {% else %}<p class="empty-state">No orders yet. <a href="{{ url_for('store.catalog') }}">Browse products</a></p>{% endif %}

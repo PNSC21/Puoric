@@ -13,11 +13,12 @@
                     <option value="amount" {% if promotion and promotion.discount_type == "amount" %}selected{% endif %}>Fixed amount</option>
                 </select></label>
                 <label id="discount-value-field"><span id="discount-value-label">Discount percentage (%)</span><input type="number" name="discount_value" id="discount-value" min="1" max="100" step="1" value="{{ promotion.discount_value|int if promotion else '' }}" required></label>
-                <label>Applies to<select name="category_scope" id="category-scope">
-                    <option value="all" {% if selected_scope == "all" %}selected{% endif %}>All categories</option>
-                    <option value="specific" {% if selected_scope == "specific" %}selected{% endif %}>Specific categories</option>
+                <label>Applies to<select name="target_scope" id="target-scope">
+                    <option value="all" {% if selected_scope == "all" %}selected{% endif %}>All products and varieties</option>
+                    <option value="categories" {% if selected_scope == "categories" %}selected{% endif %}>Selected categories</option>
+                    <option value="products" {% if selected_scope == "products" %}selected{% endif %}>Selected products</option>
                 </select></label>
-                <fieldset class="field-wide category-selection" id="category-selection" {% if selected_scope != "specific" %}hidden{% endif %}>
+                <fieldset class="field-wide category-selection" id="category-selection" {% if selected_scope != "categories" %}hidden{% endif %}>
                     <legend>Categories included</legend>
                     <div class="category-checkboxes">
                         {% for category in categories %}
@@ -30,11 +31,25 @@
                         {% endfor %}
                     </div>
                 </fieldset>
+                <fieldset class="field-wide category-selection" id="product-selection" {% if selected_scope != "products" %}hidden{% endif %}>
+                    <legend>Products included</legend>
+                    <p class="muted">Every variety of each selected product is included.</p>
+                    <div class="category-checkboxes">
+                        {% for product in products %}
+                            <label class="check-field">
+                                <input type="checkbox" name="product_ids" value="{{ product.id }}" {% if product.id in selected_product_ids %}checked{% endif %}>
+                                {{ product.name }} · {{ product.category.name }}{% if product.variants %} · all varieties{% endif %}{% if not product.is_active %} (inactive){% endif %}
+                            </label>
+                        {% else %}
+                            <p class="muted">Create a product before making a product-specific offer.</p>
+                        {% endfor %}
+                    </div>
+                </fieldset>
                 <label>Starts at (UTC)<input type="datetime-local" name="starts_at" value="{{ promotion.starts_at.strftime('%Y-%m-%dT%H:%M') if promotion else '' }}" required></label>
-                <label>Ends at (UTC)<input type="datetime-local" name="ends_at" value="{{ promotion.ends_at.strftime('%Y-%m-%dT%H:%M') if promotion else '' }}" required></label>
+                <label>Ends at (UTC, optional)<input type="datetime-local" name="ends_at" value="{{ promotion.ends_at.strftime('%Y-%m-%dT%H:%M') if promotion and promotion.ends_at.year < 9999 else '' }}"></label>
                 <fieldset class="field-wide offer-feature-selection">
                     <legend>Choose audience features</legend>
-                    <p class="muted">Select the client criteria for this offer. Leave all unchecked to offer it to every client.</p>
+                    <p class="muted">Select client criteria or an order-value condition. Leave all unchecked to offer it to every client and order.</p>
                     <div class="offer-feature-options">
                         {% for value, label in [
                             ("age", "Age"),
@@ -43,14 +58,14 @@
                             ("new_clients", "New clients"),
                             ("orders", "Order count / most orders"),
                             ("spend", "Lifetime spend / most spent"),
+                            ("order_amount", "Minimum order amount"),
                         ] %}
                             <label class="check-field"><input type="checkbox" name="features" value="{{ value }}" data-feature-toggle="{{ value }}" {% if value in selected_features %}checked{% endif %}>{{ label }}</label>
                         {% endfor %}
                     </div>
                 </fieldset>
                 <div class="field-wide form-grid offer-feature-fields" data-feature-fields="age" {% if "age" not in selected_features %}hidden{% endif %}>
-                    <label>Minimum age<input type="number" name="minimum_age" min="13" max="120" value="{{ promotion.minimum_age if promotion and promotion.minimum_age is not none else '' }}"></label>
-                    <label>Maximum age<input type="number" name="maximum_age" min="13" max="120" value="{{ promotion.maximum_age if promotion and promotion.maximum_age is not none else '' }}"></label>
+                    <label>Minimum age<input type="number" name="minimum_age" min="13" max="120" data-required-when-visible value="{{ promotion.minimum_age if promotion and promotion.minimum_age is not none else '' }}"></label>
                 </div>
                 <div class="field-wide form-grid offer-feature-fields" data-feature-fields="gender" {% if "gender" not in selected_features %}hidden{% endif %}>
                     <label>Client gender<select name="gender">
@@ -63,12 +78,14 @@
                     <p class="muted field-wide">Festival is the offer campaign label; the start and end dates determine when it is available.</p>
                 </div>
                 <div class="field-wide form-grid offer-feature-fields" data-feature-fields="orders" {% if "orders" not in selected_features %}hidden{% endif %}>
-                    <label>Minimum completed orders<input type="number" name="minimum_orders" min="0" value="{{ promotion.minimum_orders if promotion and promotion.minimum_orders is not none else '' }}"></label>
-                    <label>Maximum completed orders<input type="number" name="maximum_orders" min="0" value="{{ promotion.maximum_orders if promotion and promotion.maximum_orders is not none else '' }}"></label>
+                    <label>Minimum completed orders<input type="number" name="minimum_orders" min="0" data-required-when-visible value="{{ promotion.minimum_orders if promotion and promotion.minimum_orders is not none else '' }}"></label>
                 </div>
                 <div class="field-wide form-grid offer-feature-fields" data-feature-fields="spend" {% if "spend" not in selected_features %}hidden{% endif %}>
-                    <label>Minimum lifetime spend (₹)<input type="number" name="minimum_spend" min="0" step="1" value="{{ promotion.minimum_spend|int if promotion and promotion.minimum_spend is not none else '' }}"></label>
-                        <label>Maximum lifetime spend (₹)<input type="number" name="maximum_spend" min="0" step="1" value="{{ promotion.maximum_spend|int if promotion and promotion.maximum_spend is not none else '' }}"></label>
+                    <label>Minimum lifetime spend (₹)<input type="number" name="minimum_spend" min="0" step="1" data-required-when-visible value="{{ promotion.minimum_spend|int if promotion and promotion.minimum_spend is not none else '' }}"></label>
+                </div>
+                <div class="field-wide form-grid offer-feature-fields" data-feature-fields="order_amount" {% if "order_amount" not in selected_features %}hidden{% endif %}>
+                    <label>Minimum merchandise order (₹)<input type="number" name="minimum_order_amount" min="1" step="1" value="{{ promotion.minimum_order_amount|int if promotion and promotion.minimum_order_amount is not none else '' }}"></label>
+                    <p class="muted field-wide">The current order must reach this merchandise subtotal before discounts and shipping to receive the offer.</p>
                 </div>
             </div>
             <p class="muted">If a client qualifies for more than one active offer, the largest eligible discount is applied.</p>

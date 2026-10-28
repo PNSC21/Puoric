@@ -26,12 +26,11 @@ from services.accounts import (
 from services.forms import form_value, positive_int, slugify
 from services.uploads import save_uploaded_image
 from services.store_settings import get_setting, save_setting
-from services.delivery_codes import (
-    check_delivery_code,
-    issue_delivery_code,
-)
+from services.shipping import shipping_settings
+from services.whatsapp import shipping_update_whatsapp_url
 
 admin = Blueprint("admin", __name__, url_prefix="/admin")
+OPEN_ENDED_PROMOTION_DATE = datetime(9999, 12, 31, 23, 59)
 
 def category_characteristic_data(categories):
     return {
@@ -162,12 +161,16 @@ def promotion_form_data():
         raise ValueError("Discount value must be a whole number.")
     if discount_type == "percent" and discount_value > 100:
         raise ValueError("Percentage discount cannot exceed 100.")
-    category_scope = request.form.get("category_scope", "all")
-    if category_scope not in {"all", "specific"}:
-        raise ValueError("Choose all categories or specific categories.")
-    applies_to_all = category_scope == "all"
+    target_scope = request.form.get(
+        "target_scope",
+        "categories" if request.form.get("category_scope") == "specific" else "all",
+    )
+    if target_scope not in {"all", "categories", "products"}:
+        raise ValueError("Choose all products, specific categories, or specific products.")
+    applies_to_all = target_scope == "all"
     category_ids = []
-    if not applies_to_all:
+    product_ids = []
+    if target_scope == "categories":
         try:
             category_ids = list({
                 int(category_id)
@@ -182,23 +185,45 @@ def promotion_form_data():
             raise ValueError("Choose categories that still exist.")
     else:
         categories = []
+    if target_scope == "products":
+        try:
+            product_ids = list({
+                int(product_id)
+                for product_id in request.form.getlist("product_ids")
+            })
+        except ValueError as error:
+            raise ValueError("Choose valid products for this offer.") from error
+        if not product_ids:
+            raise ValueError("Select at least one product for this offer.")
+        products = Product.query.filter(Product.id.in_(product_ids)).all()
+        if len(products) != len(product_ids):
+            raise ValueError("Choose products that still exist.")
+    else:
+        products = []
     features = set(request.form.getlist("features"))
-    allowed_features = {"age", "gender", "festival", "new_clients", "orders", "spend"}
+    allowed_features = {
+        "age", "gender", "festival", "new_clients", "orders", "spend",
+        "order_amount",
+    }
     if not features <= allowed_features:
         raise ValueError("Choose valid offer audience features.")
     try:
         starts_at = datetime.fromisoformat(request.form.get("starts_at", ""))
-        ends_at = datetime.fromisoformat(request.form.get("ends_at", ""))
     except ValueError as error:
-        raise ValueError("Enter valid offer start and end times.") from error
+        raise ValueError("Enter a valid offer start time.") from error
+    raw_ends_at = request.form.get("ends_at", "").strip()
+    if raw_ends_at:
+        try:
+            ends_at = datetime.fromisoformat(raw_ends_at)
+        except ValueError as error:
+            raise ValueError("Enter a valid offer end time.") from error
+    else:
+        ends_at = OPEN_ENDED_PROMOTION_DATE
     if starts_at >= ends_at:
         raise ValueError("Offer end time must be after its start time.")
     minimum_age = optional_int("minimum_age", "minimum age", 13, 120) if "age" in features else None
-    maximum_age = optional_int("maximum_age", "maximum age", 13, 120) if "age" in features else None
-    if "age" in features and minimum_age is None and maximum_age is None:
-        raise ValueError("Enter a minimum or maximum age for this audience.")
-    if minimum_age is not None and maximum_age is not None and minimum_age > maximum_age:
-        raise ValueError("Minimum age cannot exceed maximum age.")
+    if "age" in features and minimum_age is None:
+        raise ValueError("Enter the minimum age for this audience.")
     gender = request.form.get("gender", "").strip() if "gender" in features else ""
     if gender not in {"", "Female", "Male", "Non-binary", "Other"}:
         raise ValueError("Choose a valid gender audience.")
@@ -211,40 +236,37 @@ def promotion_form_data():
     if "festival" in features and not festival_name:
         raise ValueError("Enter the festival name for this offer.")
     minimum_orders = optional_int("minimum_orders", "minimum order count") if "orders" in features else None
-    maximum_orders = optional_int("maximum_orders", "maximum order count") if "orders" in features else None
-    if "orders" in features and minimum_orders is None and maximum_orders is None:
-        raise ValueError("Enter a minimum or maximum order count.")
-    if (
-        minimum_orders is not None and maximum_orders is not None
-        and minimum_orders > maximum_orders
-    ):
-        raise ValueError("Minimum order count cannot exceed maximum.")
+    if "orders" in features and minimum_orders is None:
+        raise ValueError("Enter the minimum completed order count.")
     minimum_spend = whole_money("minimum_spend", "minimum spend", required=False) if "spend" in features else None
-    maximum_spend = whole_money("maximum_spend", "maximum spend", required=False) if "spend" in features else None
-    if "spend" in features and minimum_spend is None and maximum_spend is None:
-        raise ValueError("Enter a minimum or maximum lifetime spend.")
-    if (
-        minimum_spend is not None and maximum_spend is not None
-        and minimum_spend > maximum_spend
-    ):
-        raise ValueError("Minimum spend cannot exceed maximum spend.")
+    if "spend" in features and minimum_spend is None:
+        raise ValueError("Enter the minimum lifetime spend.")
+    minimum_order_amount = (
+        whole_money("minimum_order_amount", "minimum order amount")
+        if "order_amount" in features else None
+    )
+    if "order_amount" in features and minimum_order_amount <= 0:
+        raise ValueError("Minimum order amount must be greater than zero.")
     return {
         "name": name,
         "discount_type": discount_type,
         "discount_value": discount_value,
+        "minimum_order_amount": minimum_order_amount,
+        "target_scope": target_scope,
         "applies_to_all_categories": applies_to_all,
         "categories": categories,
+        "products": products,
         "starts_at": starts_at,
         "ends_at": ends_at,
         "minimum_age": minimum_age,
-        "maximum_age": maximum_age,
+        "maximum_age": None,
         "gender": gender or None,
         "festival_name": festival_name,
         "new_clients_only": "new_clients" in features,
         "minimum_orders": minimum_orders,
-        "maximum_orders": maximum_orders,
+        "maximum_orders": None,
         "minimum_spend": minimum_spend,
-        "maximum_spend": maximum_spend,
+        "maximum_spend": None,
     }
 
 
@@ -397,25 +419,49 @@ def profile():
 @require_admin
 def settings():
     if request.method == "POST":
-        upi_id = form_value("upi_id", maximum=255) or ""
-        if upi_id and (
-            "@" not in upi_id
-            or upi_id.count("@") != 1
-            or any(character.isspace() for character in upi_id)
-        ):
-            flash("Enter a valid UPI ID, such as yourname@bank.", "error")
-        else:
-            save_setting("upi_payee_id", upi_id)
-            db.session.commit()
-            flash(
-                "UPI ID saved. UPI QR checkout is "
-                + ("available." if upi_id else "turned off."),
-                "success",
+        try:
+            upi_id = form_value("upi_id", maximum=255) or ""
+            if upi_id and (
+                "@" not in upi_id
+                or upi_id.count("@") != 1
+                or any(character.isspace() for character in upi_id)
+            ):
+                raise ValueError("Enter a valid UPI ID, such as yourname@bank.")
+            store_state = form_value("store_state", required=True, maximum=80)
+            store_country = form_value("store_country", required=True, maximum=80)
+            charges = {
+                key: whole_money(key, label)
+                for key, label in (
+                    ("shipping_within_state", "within-state shipping charge"),
+                    ("shipping_within_country", "within-country shipping charge"),
+                    ("shipping_out_of_country", "international shipping charge"),
+                )
+            }
+            free_shipping_threshold = whole_money(
+                "free_shipping_threshold",
+                "free-shipping threshold",
+                required=False,
             )
+            save_setting("upi_payee_id", upi_id)
+            save_setting("store_state", store_state)
+            save_setting("store_country", store_country)
+            for key, amount in charges.items():
+                save_setting(key, str(amount))
+            save_setting(
+                "free_shipping_threshold",
+                str(free_shipping_threshold)
+                if free_shipping_threshold is not None else "",
+            )
+            db.session.commit()
+            flash("Payment and shipping settings saved.", "success")
             return redirect(url_for("admin.settings"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(str(error), "error")
     return render_template(
         "admin/settings.html",
         upi_id=get_setting("upi_payee_id", "UPI_PAYEE_ID"),
+        shipping=shipping_settings(),
     )
 
 
@@ -615,8 +661,8 @@ def promotion_edit(promotion_id=None):
                 db.session.add(promotion)
             else:
                 for key, value in form_data.items():
-                    if key == "categories":
-                        promotion.categories = value
+                    if key in {"categories", "products"}:
+                        setattr(promotion, key, value)
                     else:
                         setattr(promotion, key, value)
             db.session.commit()
@@ -630,9 +676,13 @@ def promotion_edit(promotion_id=None):
         {category.id for category in promotion.categories}
         if promotion else set()
     )
+    selected_product_ids = (
+        {product.id for product in promotion.products}
+        if promotion else set()
+    )
     selected_features = set()
     if promotion:
-        if promotion.minimum_age is not None or promotion.maximum_age is not None:
+        if promotion.minimum_age is not None:
             selected_features.add("age")
         if promotion.gender:
             selected_features.add("gender")
@@ -640,10 +690,12 @@ def promotion_edit(promotion_id=None):
             selected_features.add("festival")
         if promotion.new_clients_only:
             selected_features.add("new_clients")
-        if promotion.minimum_orders is not None or promotion.maximum_orders is not None:
+        if promotion.minimum_orders is not None:
             selected_features.add("orders")
-        if promotion.minimum_spend is not None or promotion.maximum_spend is not None:
+        if promotion.minimum_spend is not None:
             selected_features.add("spend")
+        if promotion.minimum_order_amount is not None:
+            selected_features.add("order_amount")
     if request.method == "POST":
         try:
             selected_category_ids = {
@@ -652,17 +704,34 @@ def promotion_edit(promotion_id=None):
             }
         except ValueError:
             selected_category_ids = set()
+        try:
+            selected_product_ids = {
+                int(product_id)
+                for product_id in request.form.getlist("product_ids")
+            }
+        except ValueError:
+            selected_product_ids = set()
         selected_features = set(request.form.getlist("features"))
+    selected_scope = request.form.get(
+        "target_scope",
+        (
+            "categories"
+            if request.form.get("category_scope") == "specific"
+            else (
+                "all" if not promotion or promotion.target_scope == "all"
+                else promotion.target_scope
+            )
+        ),
+    )
     return render_template(
         "admin/promotion_form.html",
         promotion=promotion,
         categories=categories_list,
+        products=Product.query.order_by(Product.name).all(),
         selected_category_ids=selected_category_ids,
+        selected_product_ids=selected_product_ids,
         selected_features=selected_features,
-        selected_scope=request.form.get(
-            "category_scope",
-            "all" if not promotion or promotion.applies_to_all_categories else "specific",
-        ),
+        selected_scope=selected_scope,
     )
 
 
@@ -693,9 +762,7 @@ def promotion_delete(promotion_id):
 @admin.route("/categories")
 @require_admin
 def categories():
-    category_list = Category.query.order_by(
-        Category.display_order, Category.name
-    ).all()
+    category_list = Category.query.order_by(Category.name).all()
     return render_template("admin/categories.html", categories=category_list)
 
 
@@ -714,7 +781,6 @@ def category_new():
                 name=name,
                 slug=slug,
                 description=form_value("description"),
-                display_order=positive_int("display_order"),
                 is_active=True,
             )
             category.image = save_uploaded_image("image", "categories")
@@ -749,7 +815,6 @@ def category_edit(category_id):
             category.name = name
             category.slug = slug
             category.description = form_value("description")
-            category.display_order = positive_int("display_order")
             category.image = save_uploaded_image(
                 "image", "categories", category.image
             )
@@ -1250,124 +1315,52 @@ def orders():
 def order_detail(order_id):
     order = db.session.get(Order, order_id) or abort(404)
     if request.method == "POST":
-        action = request.form.get("action")
-        delivery_whatsapp_url = None
-        if action == "verify_delivery":
-            if (
-                order.shipping_status != "Shipped"
-                or order.order_status == "Cancelled"
-                or order.order_status == "Delivered"
-            ):
-                flash("This order is not awaiting delivery verification.", "error")
-            else:
-                result = check_delivery_code(
-                    order, request.form.get("delivery_code", "").strip()
-                )
-                if result != "valid":
-                    db.session.commit()
-                    messages = {
-                        "invalid": "That delivery code is incorrect.",
-                        "expired": "The delivery code expired. Send a new code.",
-                        "locked": "Too many incorrect attempts. Send a new code.",
-                        "missing": "No delivery code is active. Send a new code.",
-                    }
-                    flash(messages[result], "error")
-                else:
-                    order.delivery_code_hash = None
-                    order.order_status = "Delivered"
-                    order.shipping_status = "Delivered"
-                    if order.payment_method == "Cash on delivery":
-                        order.payment_status = "Paid"
-                    if order.payment:
-                        order.payment.payment_status = order.payment_status
-                    if order.payment and order.payment_method == "Cash on delivery":
-                        order.payment.paid_at = datetime.now(timezone.utc).replace(
-                            tzinfo=None
-                        )
-                    db.session.commit()
-                    if order.payment_method == "Cash on delivery":
-                        flash(
-                            "Delivery and cash payment verified. The order is marked "
-                            "Delivered and Paid.",
-                            "success",
-                        )
-                    else:
-                        flash(
-                            "The client confirmed receipt. The order is marked "
-                            "Delivered; payment status was not changed.",
-                            "success",
-                        )
-            return redirect(url_for("admin.order_detail", order_id=order.id))
-
-        if action == "prepare_delivery_code":
-            if (
-                order.shipping_status != "Shipped"
-                or order.order_status == "Cancelled"
-                or order.order_status == "Delivered"
-            ):
-                flash("A delivery code cannot be sent for this order right now.", "error")
-            else:
-                delivery_whatsapp_url = issue_delivery_code(order)
-            if delivery_whatsapp_url:
-                db.session.commit()
-                flash(
-                    "A new code is ready in WhatsApp. Review the recipient and tap "
-                    "Send in WhatsApp.",
-                    "success",
-                )
-            else:
-                if order.shipping_status == "Shipped":
-                    flash(
-                        "Could not prepare WhatsApp. Check the client's delivery "
-                        "phone number and country.",
-                        "error",
-                    )
-            return render_template(
-                "admin/order_detail.html",
-                order=order,
-                order_statuses=(order.order_status,) + ORDER_STATUS_TRANSITIONS.get(
-                    order.order_status, ()
-                ),
-                payment_statuses=PAYMENT_STATUS,
-                delivery_whatsapp_url=delivery_whatsapp_url,
-            )
-
         order_status = request.form.get("order_status")
         payment_status = request.form.get("payment_status", order.payment_status)
         allowed_order_statuses = (
             order.order_status,
-        ) + ORDER_STATUS_TRANSITIONS.get(order.order_status, ())
-        if (
+        ) + tuple(
+            status for status in ORDER_STATUS_TRANSITIONS.get(order.order_status, ())
+            if status != "Delivered"
+        )
+        if order_status == "Delivered" and order.order_status != "Delivered":
+            flash(
+                "The client marks the parcel received from their order page.",
+                "error",
+            )
+        elif (
             order_status not in allowed_order_statuses
             or payment_status not in PAYMENT_STATUS
         ):
             flash("Choose the current status or the next available status.", "error")
-        elif order_status == "Delivered" and order.order_status != "Delivered":
+        elif order_status in {"Confirmed", "Packed", "Shipped"} and payment_status != "Paid":
             flash(
-                "Verify the client's WhatsApp delivery code to mark this order Delivered.",
+                "Verify the prepaid UPI transaction before confirming or shipping "
+                "the order.",
                 "error",
             )
-        elif (
-            order.payment_method == "Cash on delivery"
-            and order.payment_status != "Paid"
-            and payment_status == "Paid"
-        ):
-            flash(
-                "Verify the client's WhatsApp delivery code after collecting the COD "
-                "amount to mark this order Paid.",
-                "error",
-            )
+        elif payment_status == "Refunded" and order.payment_status not in {"Paid", "Refunded"}:
+            flash("Record a refund only after the prepaid payment was verified.", "error")
         else:
             payment_was_pending = order.payment_status != "Paid"
-            shipping_was_not_shipped = order.shipping_status != "Shipped"
+            was_shipped = order.shipping_status == "Shipped"
+            was_cancelled = order.order_status == "Cancelled"
             order.order_status = order_status
             if order_status in {"Packed", "Shipped", "Delivered"}:
                 order.shipping_status = order_status
             elif order_status in {"Pending", "Confirmed"}:
                 order.shipping_status = "Pending"
             if order_status == "Cancelled":
-                order.delivery_code_hash = None
-                order.delivery_code_sent_at = None
+                if not was_shipped:
+                    order.shipping_amount = Decimal("0.00")
+                    order.total_amount = max(
+                        Decimal(order.subtotal_amount) - Decimal(order.discount_amount),
+                        Decimal("0.00"),
+                    )
+                    if not was_cancelled:
+                        for item in order.order_items:
+                            stock_item = item.variant or item.product
+                            stock_item.stock += item.quantity
             order.payment_status = payment_status
             order.admin_note = request.form.get("admin_note", "").strip()[:1000] or None
             if order.payment:
@@ -1376,45 +1369,39 @@ def order_detail(order_id):
                     order.payment.paid_at = datetime.now(timezone.utc).replace(
                         tzinfo=None
                     )
-            if (
-                order_status == "Shipped"
-                and shipping_was_not_shipped
-            ):
-                delivery_whatsapp_url = issue_delivery_code(order)
             db.session.commit()
-            if order_status == "Shipped":
-                if delivery_whatsapp_url:
-                    flash(
-                        "Order marked Shipped. The receipt-verification code is ready "
-                        "in WhatsApp; review the client number and tap Send.",
-                        "success",
-                    )
-                else:
-                    flash(
-                        "Order marked Shipped, but WhatsApp could not be prepared. "
-                        "Check the client's delivery phone number and country.",
-                        "error",
-                    )
-            elif payment_status == "Paid" and payment_was_pending:
+            if payment_status == "Paid" and payment_was_pending:
                 flash("Payment marked Paid.", "success")
+            elif order_status == "Cancelled" and payment_status == "Paid":
+                flash(
+                    "Order cancelled. If a refund is due, process it through the "
+                    "payment account and then record the refund status here.",
+                    "success",
+                )
             else:
                 flash("Order updated.", "success")
-            if delivery_whatsapp_url:
-                return render_template(
-                    "admin/order_detail.html",
-                    order=order,
-                    order_statuses=(order.order_status,)
-                    + ORDER_STATUS_TRANSITIONS.get(order.order_status, ()),
-                    payment_statuses=PAYMENT_STATUS,
-                    delivery_whatsapp_url=delivery_whatsapp_url,
-                )
             return redirect(url_for("admin.order_detail", order_id=order.id))
+    order_statuses = (order.order_status,) + tuple(
+        status for status in ORDER_STATUS_TRANSITIONS.get(order.order_status, ())
+        if status != "Delivered"
+    )
+    refund_due = Decimal("0.00")
+    if (
+        order.payment
+        and order.payment_status == "Paid"
+        and order.order_status == "Cancelled"
+        and order.shipping_status != "Shipped"
+        and order.payment.amount > order.total_amount
+    ):
+        refund_due = Decimal(order.payment.amount) - Decimal(order.total_amount)
     return render_template(
         "admin/order_detail.html",
         order=order,
-        order_statuses=(order.order_status,) + ORDER_STATUS_TRANSITIONS.get(
-            order.order_status, ()
-        ),
+        order_statuses=order_statuses,
         payment_statuses=PAYMENT_STATUS,
-        delivery_whatsapp_url=None,
+        refund_due=refund_due,
+        shipping_update_whatsapp_url=(
+            shipping_update_whatsapp_url(order)
+            if order.order_status == "Shipped" else None
+        ),
     )

@@ -3,8 +3,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const discountType = form.querySelector('[name="discount_type"]');
     const discountValue = document.getElementById("discount-value");
     const discountLabel = document.getElementById("discount-value-label");
-    const categoryScope = document.getElementById("category-scope");
+    const targetScope = document.getElementById("target-scope");
     const categorySelection = document.getElementById("category-selection");
+    const productSelection = document.getElementById("product-selection");
     const featureToggles = form.querySelectorAll("[data-feature-toggle]");
 
     function updateDiscountFields() {
@@ -16,17 +17,22 @@ document.addEventListener("DOMContentLoaded", function () {
         discountValue.step = "1";
     }
 
-    function updateCategoryFields() {
-        const specific = categoryScope.value === "specific";
-        categorySelection.hidden = !specific;
-        categorySelection.querySelectorAll('input[name="category_ids"]').forEach(
-            function (checkbox) {
-                checkbox.required = specific
-                    && categorySelection.querySelectorAll(
-                        'input[name="category_ids"]'
-                    ).length === 1;
-            }
-        );
+    function updateTargetFields() {
+        const categoriesSelected = targetScope.value === "categories";
+        const productsSelected = targetScope.value === "products";
+        categorySelection.hidden = !categoriesSelected;
+        productSelection.hidden = !productsSelected;
+        [
+            [categorySelection, "category_ids", categoriesSelected],
+            [productSelection, "product_ids", productsSelected],
+        ].forEach(function ([selection, fieldName, isSelected]) {
+            const checkboxes = selection.querySelectorAll(
+                'input[name="' + fieldName + '"]'
+            );
+            checkboxes.forEach(function (checkbox) {
+                checkbox.required = isSelected && checkboxes.length === 1;
+            });
+        });
     }
 
     function updateAudienceFields() {
@@ -36,16 +42,21 @@ document.addEventListener("DOMContentLoaded", function () {
             );
             if (fields) {
                 fields.hidden = !toggle.checked;
+                fields.querySelectorAll("[data-required-when-visible]").forEach(
+                    function (input) {
+                        input.required = toggle.checked;
+                    }
+                );
             }
         });
     }
 
     discountType.addEventListener("change", updateDiscountFields);
-    categoryScope.addEventListener("change", updateCategoryFields);
+    targetScope.addEventListener("change", updateTargetFields);
     featureToggles.forEach(function (toggle) {
         toggle.addEventListener("change", updateAudienceFields);
     });
     updateDiscountFields();
-    updateCategoryFields();
+    updateTargetFields();
     updateAudienceFields();
 });

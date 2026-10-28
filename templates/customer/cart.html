@@ -31,7 +31,7 @@
                     {% endif %}
                     <p class="total-line"><strong>Total</strong><strong>{{ quote.total|currency }}</strong></p>
                     {% if not customer_id %}<p class="muted">Sign in to check whether you qualify for a client offer.</p>{% endif %}
-                    <p class="muted">Delivery details are confirmed at checkout.</p>
+                    <p class="muted">Shipping is calculated at checkout from your delivery address.</p>
                     <a class="btn-primary-custom" href="{{ url_for('customer.checkout') }}">Continue to checkout</a>
                 </aside>
             </div>

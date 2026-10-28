@@ -14,6 +14,10 @@ from database.models import (
     OrderItem, Product, ProductVariant, Promotion
 )
 from services.payments import upi_payment_uri
+from services.promotions import promotion_quote
+from services.shipping import shipping_quote
+from services.store_settings import save_setting
+from services.whatsapp import shipping_update_whatsapp_url
 
 
 class TestConfig:
@@ -23,6 +27,7 @@ class TestConfig:
     ADMIN_SIGNUP_KEY = None
     UPI_PAYEE_ID = "puoric@upi"
     UPI_PAYEE_NAME = "Puoric"
+    STORE_WHATSAPP_NUMBER = "1234567890"
     TESTING = True
 
 
@@ -60,7 +65,7 @@ class DashboardFlowTests(unittest.TestCase):
 
     def test_client_order_and_admin_tracking_flow(self):
         self.assertEqual(self.client.get("/").status_code, 200)
-        self.assertIn(b"Feel good in the skin", self.client.get("/").data)
+        self.assertIn(b"Meet your new", self.client.get("/").data)
         home = self.client.get("/")
         for option in (
             b"Client sign in", b"Admin sign in",
@@ -160,8 +165,23 @@ class DashboardFlowTests(unittest.TestCase):
             "order_status": "Confirmed",
             "payment_status": "Pending",
             "admin_note": "On the way",
-        })
-        self.assertEqual(response.status_code, 302)
+        }, follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Verify the prepaid UPI transaction", response.data)
+        order = db.session.get(Order, int(order_id))
+        self.assertEqual(order.order_status, "Pending")
+        for payment_status, order_status in (
+            ("Paid", "Pending"),
+            ("Paid", "Confirmed"),
+            ("Paid", "Packed"),
+            ("Paid", "Shipped"),
+        ):
+            response = admin_client.post(f"/admin/orders/{order_id}", data={
+                "order_status": order_status,
+                "payment_status": payment_status,
+                "admin_note": "On the way",
+            })
+            self.assertEqual(response.status_code, 302)
         admin_client.post("/admin/logout")
         response = admin_client.post("/admin/login", data={
             "email": "admin@example.test",
@@ -177,6 +197,7 @@ class DashboardFlowTests(unittest.TestCase):
         response = self.client.get(f"/client/orders/{order_id}")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Shipped", response.data)
+        self.assertIn(b"I received the correct order", response.data)
 
     def test_first_admin_can_register_and_later_signup_explains_admin_gate(self):
         response = self.app.test_client().post("/admin/signup", data={
@@ -249,7 +270,6 @@ class DashboardFlowTests(unittest.TestCase):
         response = self.client.post("/admin/categories/new", data={
             "name": "Body care",
             "description": "Body care products",
-            "display_order": "2",
             "image": (BytesIO(b"\x89PNG\r\n\x1a\ncategory image"), "body-care.png"),
         })
         self.assertEqual(response.status_code, 302)
@@ -263,6 +283,11 @@ class DashboardFlowTests(unittest.TestCase):
         self.client.post(f"/admin/categories/{category.id}/toggle")
         self.assertTrue(category.is_active)
         self.assertEqual(self.client.get("/admin/categories/new").status_code, 200)
+        self.assertNotIn(
+            b"Display order",
+            self.client.get("/admin/categories/new").data,
+        )
+        self.assertNotIn(b"<th>Order</th>", self.client.get("/admin/categories").data)
         self.assertEqual(
             {tag.name for tag in category.characteristic_tags},
             set(),
@@ -493,12 +518,10 @@ class DashboardFlowTests(unittest.TestCase):
         ).count(), 1)
         response = admin.post("/admin/categories/new", data={
             "name": "Repeated category",
-            "display_order": "1",
         })
         self.assertEqual(response.status_code, 302)
         response = admin.post("/admin/categories/new", data={
             "name": " repeated   CATEGORY ",
-            "display_order": "1",
         })
         self.assertEqual(response.status_code, 200)
         duplicates = Category.query.filter_by(name="Repeated category").all()
@@ -580,7 +603,6 @@ class DashboardFlowTests(unittest.TestCase):
             "starts_at": now.strftime("%Y-%m-%dT%H:%M"),
             "ends_at": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
             "minimum_age": "25",
-            "maximum_age": "35",
             "gender": "Female",
             "new_clients_only": "on",
         })
@@ -588,9 +610,11 @@ class DashboardFlowTests(unittest.TestCase):
         self.assertEqual(admin.get("/admin/promotions").status_code, 200)
         self.assertEqual(admin.get("/admin/promotions/1/edit").status_code, 200)
         offer_form = admin.get("/admin/promotions/1/edit")
-        self.assertIn(b"Specific categories", offer_form.data)
+        self.assertIn(b"Selected categories", offer_form.data)
         self.assertIn(b"Skin care", offer_form.data)
         self.assertIn(b"Diwali", offer_form.data)
+        self.assertIn(b"Minimum age", offer_form.data)
+        self.assertNotIn(b"Maximum age", offer_form.data)
         client.post("/client/cart/add/1", data={"quantity": "1"})
         cart = client.get("/client/cart")
         self.assertIn(b"Sensitive skin offer", cart.data)
@@ -614,7 +638,6 @@ class DashboardFlowTests(unittest.TestCase):
             "starts_at": now.strftime("%Y-%m-%dT%H:%M"),
             "ends_at": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
             "minimum_age": "25",
-            "maximum_age": "35",
             "gender": "Female",
             "new_clients_only": "on",
         })
@@ -697,7 +720,189 @@ class DashboardFlowTests(unittest.TestCase):
             "ends_at": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
         })
         self.assertEqual(invalid_offer.status_code, 200)
-        self.assertIn(b"Enter a minimum or maximum age", invalid_offer.data)
+        self.assertIn(b"Enter the minimum age", invalid_offer.data)
+        for feature, expected_message in (
+            ("orders", b"Enter the minimum completed order count"),
+            ("spend", b"Enter the minimum lifetime spend"),
+        ):
+            invalid_minimum = admin.post("/admin/promotions/new", data={
+                "name": f"Incomplete {feature} offer",
+                "discount_type": "percent",
+                "discount_value": "15",
+                "target_scope": "all",
+                "features": [feature],
+                "starts_at": now.strftime("%Y-%m-%dT%H:%M"),
+            })
+            self.assertEqual(invalid_minimum.status_code, 200)
+            self.assertIn(expected_message, invalid_minimum.data)
+
+    def test_product_offer_applies_to_every_variant_but_not_sibling_products(self):
+        admin = self.app.test_client()
+        admin.post("/admin/signup", data={
+            "full_name": "Offer Admin",
+            "email": "offer-admin@example.test",
+            "password": "admin-password-123",
+            "confirm_password": "admin-password-123",
+        })
+        selected_product = db.session.get(Product, 1)
+        selected_product.name = "Selected serum"
+        selected_product.variants = [
+            ProductVariant(
+                name="Size", value="30", sku="SERUM-30",
+                price=Decimal("100.00"), stock=2, is_active=True,
+            ),
+            ProductVariant(
+                name="Size", value="60", sku="SERUM-60",
+                price=Decimal("400.00"), stock=2, is_active=True,
+            ),
+        ]
+        sibling_product = Product(
+            category_id=selected_product.category_id,
+            name="Sibling serum",
+            slug="sibling-serum",
+            sku="SIBLING-SERUM",
+            price=Decimal("120.00"),
+            stock=2,
+            is_active=True,
+        )
+        db.session.add(sibling_product)
+        db.session.commit()
+        variant_ids = [variant.id for variant in selected_product.variants]
+        now = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1)
+        response = admin.post("/admin/promotions/new", data={
+            "name": "Selected serum offer",
+            "discount_type": "percent",
+            "discount_value": "20",
+            "target_scope": "products",
+            "product_ids": ["1"],
+            "starts_at": now.strftime("%Y-%m-%dT%H:%M"),
+            "ends_at": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
+        })
+        self.assertEqual(response.status_code, 302)
+        promotion = Promotion.query.one()
+        self.assertEqual(promotion.target_scope, "products")
+        self.assertEqual([product.id for product in promotion.products], [1])
+        self.assertIn(b"all varieties", admin.get(
+            f"/admin/promotions/{promotion.id}/edit"
+        ).data)
+
+        client = self.app.test_client()
+        client.post("/client/signup", data={
+            "full_name": "Offer Client",
+            "email": "offer-client@example.test",
+            "phone": "9876500020",
+            "password": "client-password-123",
+            "address_line1": "20 Offer Road",
+            "city": "Thane",
+            "state": "Maharashtra",
+            "country": "India",
+            "pincode": "400601",
+        })
+        for variant_id in variant_ids:
+            response = client.post("/client/cart/add/1", data={
+                "variant_id": str(variant_id),
+                "quantity": "1",
+            })
+            self.assertEqual(response.status_code, 302)
+        response = client.post(
+            f"/client/cart/add/{sibling_product.id}", data={"quantity": "1"}
+        )
+        self.assertEqual(response.status_code, 302)
+        response = client.post("/client/checkout", data={"address_id": "1"})
+        self.assertEqual(response.status_code, 302)
+        order = Order.query.one()
+        self.assertEqual(order.subtotal_amount, Decimal("620.00"))
+        self.assertEqual(order.discount_amount, Decimal("100.00"))
+        self.assertEqual(order.total_amount, Decimal("520.00"))
+
+    def test_all_active_offers_use_maximum_discount(self):
+        customer = Customer(
+            full_name="Offer Maximum Client",
+            phone="9876500022",
+            email="offer-max@example.test",
+            password_hash="test",
+            address="1 Offer Road",
+            city="Mumbai",
+            state="Maharashtra",
+            country="India",
+            pincode="400001",
+        )
+        db.session.add(customer)
+        db.session.flush()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        db.session.add_all([
+            Promotion(
+                name="Fixed sixty",
+                discount_type="fixed",
+                discount_value=Decimal("60.00"),
+                target_scope="all",
+                applies_to_all_categories=True,
+                starts_at=now - timedelta(days=1),
+                ends_at=now + timedelta(days=1),
+                is_active=True,
+            ),
+            Promotion(
+                name="Percent thirty",
+                discount_type="percent",
+                discount_value=Decimal("30.00"),
+                target_scope="all",
+                applies_to_all_categories=True,
+                starts_at=now - timedelta(days=1),
+                ends_at=now + timedelta(days=1),
+                is_active=True,
+            ),
+        ])
+        db.session.commit()
+        product = db.session.get(Product, 1)
+        quote = promotion_quote(customer, [{
+            "product": product,
+            "variant": None,
+            "quantity": 1,
+            "price": Decimal("250.00"),
+            "subtotal": Decimal("250.00"),
+        }], now=now)
+
+        self.assertEqual(quote["promotion"].name, "Percent thirty")
+        self.assertEqual(quote["discount"], Decimal("75.00"))
+        self.assertEqual(quote["total"], Decimal("175.00"))
+
+    def test_shipping_matches_state_then_country_then_international(self):
+        for key, value in (
+            ("store_state", "  Gujarat "),
+            ("store_country", " INDIA "),
+            ("shipping_within_state", "30"),
+            ("shipping_within_country", "60"),
+            ("shipping_out_of_country", "200"),
+            ("free_shipping_threshold", "500"),
+        ):
+            save_setting(key, value)
+        db.session.commit()
+
+        def address(state, country):
+            return CustomerAddress(
+                full_name="Region Test",
+                phone="9876500023",
+                address_line1="1 Region Road",
+                city="Test City",
+                state=state,
+                country=country,
+                pincode="000000",
+            )
+
+        same_state = shipping_quote(address("gujarat", "india"), Decimal("499.00"))
+        same_country = shipping_quote(address("Maharashtra", "India"), Decimal("499.00"))
+        international = shipping_quote(address("California", "United States"), Decimal("499.00"))
+        free_shipping = shipping_quote(address("California", "United States"), Decimal("500.00"))
+
+        self.assertEqual(same_state["region"], "within_state")
+        self.assertEqual(same_state["amount"], Decimal("30.00"))
+        self.assertEqual(same_country["region"], "within_country")
+        self.assertEqual(same_country["amount"], Decimal("60.00"))
+        self.assertEqual(international["region"], "out_of_country")
+        self.assertEqual(international["amount"], Decimal("200.00"))
+        self.assertEqual(free_shipping["region"], "out_of_country")
+        self.assertEqual(free_shipping["amount"], Decimal("0.00"))
+        self.assertTrue(free_shipping["free_shipping"])
 
     def test_delete_archive_ban_and_whole_number_money_rules(self):
         admin = self.app.test_client()
@@ -832,6 +1037,14 @@ class DashboardFlowTests(unittest.TestCase):
         })
         client.post("/client/cart/add/1", data={"quantity": "2"})
 
+        cod_response = client.post("/client/checkout", data={
+            "address_id": "1",
+            "payment_method": "Cash on delivery",
+        })
+        self.assertEqual(cod_response.status_code, 302)
+        self.assertEqual(Order.query.count(), 0)
+        self.assertNotIn(b"Cash on delivery", client.get("/client/checkout").data)
+
         response = client.post("/client/checkout", data={
             "address_id": "1",
             "payment_method": "UPI QR",
@@ -841,6 +1054,7 @@ class DashboardFlowTests(unittest.TestCase):
         order = Order.query.one()
         self.assertEqual(order.payment_method, "UPI QR")
         self.assertEqual(order.payment_status, "Pending")
+        self.assertEqual(order.shipping_amount, Decimal("0.00"))
         self.assertEqual(order.total_amount, Decimal("500.00"))
         payment_uri = upi_payment_uri(order, "puoric@upi", "Puoric")
         self.assertTrue(payment_uri.startswith("upi://pay?"))
@@ -855,7 +1069,7 @@ class DashboardFlowTests(unittest.TestCase):
         self.assertIn(b"Payment will remain pending", response.data)
         self.assertIn(b"Complete your UPI payment", response.data)
         self.assertIn(b"Open WhatsApp and send order", response.data)
-        self.assertIn(b"wa.me/918422994021", response.data)
+        self.assertIn(b"wa.me/911234567890", response.data)
         whatsapp_href = re.search(
             rb'href="(https://wa\.me/[^"]+)"', response.data
         ).group(1).decode()
@@ -908,7 +1122,7 @@ class DashboardFlowTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(Order.query.count(), 0)
 
-    def test_admin_can_record_upi_payment_and_keep_statuses_simple(self):
+    def test_prepaid_orders_require_verified_payment_and_client_receipt(self):
         admin = self.app.test_client()
         admin.post("/admin/signup", data={
             "full_name": "Payment Admin",
@@ -918,157 +1132,315 @@ class DashboardFlowTests(unittest.TestCase):
         })
         client = self.app.test_client()
         client.post("/client/signup", data={
-            "full_name": "Paid Order Client",
-            "email": "paid-order-client@example.test",
-            "phone": "9876500013",
+            "full_name": "Online Client",
+            "email": "online-client@example.test",
+            "phone": "9876500014",
             "password": "client-password-123",
-            "address_line1": "11 Payment Road",
+            "address_line1": "12 Payment Road",
             "city": "Thane",
             "state": "Maharashtra",
             "country": "India",
             "pincode": "400601",
         })
         client.post("/client/cart/add/1", data={"quantity": "1"})
-
         response = client.post("/client/checkout", data={
             "address_id": "1",
             "payment_method": "UPI QR",
         })
         self.assertEqual(response.status_code, 302)
         order = Order.query.one()
-        response = admin.post(f"/admin/orders/{order.id}", data={
-            "order_status": "Shipped",
-            "payment_status": "Pending",
-            "admin_note": "",
-        })
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(order.payment_status, "Pending")
+        for requested_status in ("Confirmed",):
+            response = admin.post(
+                f"/admin/orders/{order.id}",
+                data={
+                    "order_status": requested_status,
+                    "payment_status": "Pending",
+                    "admin_note": "",
+                },
+                follow_redirects=True,
+            )
+            self.assertIn(b"Verify the prepaid UPI transaction", response.data)
+            self.assertEqual(order.order_status, "Pending")
+
+        client_order_page = client.get(f"/client/orders/{order.id}")
+        self.assertNotIn(b"Cash on delivery", client_order_page.data)
+        self.assertNotIn(b"Delivery code", client_order_page.data)
+        self.assertNotIn(b"I received my parcel", client_order_page.data)
+        response = client.post(f"/client/orders/{order.id}/received")
+        self.assertEqual(response.status_code, 302)
         self.assertEqual(order.order_status, "Pending")
 
         response = admin.post(f"/admin/orders/{order.id}", data={
-            "order_status": "Confirmed",
-            "payment_status": "Pending",
-            "admin_note": "",
-        })
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(order.payment_status, "Pending")
-        self.assertEqual(order.order_status, "Confirmed")
-        self.assertEqual(order.shipping_status, "Pending")
-        detail = admin.get(f"/admin/orders/{order.id}")
-        self.assertIn(b"Order status", detail.data)
-        self.assertNotIn(b"Shipping status", detail.data)
-        order_list = admin.get("/admin/orders")
-        self.assertNotIn(b"<th>Shipping</th>", order_list.data)
-        for status in ("Packed", "Shipped"):
-            response = admin.post(f"/admin/orders/{order.id}", data={
-                "order_status": status,
-                "payment_status": "Pending",
-                "admin_note": "",
-            })
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Open WhatsApp and send receipt code", response.data)
-        whatsapp_href = re.search(
-            rb'href="(https://wa\.me/[^"]+)"', response.data
-        ).group(1).decode()
-        code_message = parse_qs(urlparse(whatsapp_href).query)["text"][0]
-        code = re.search(r"Delivery code: (\d{6})", code_message).group(1)
-        self.assertIn("Payment status is handled separately.", code_message)
-        response = admin.post(f"/admin/orders/{order.id}", data={
-            "action": "verify_delivery",
-            "delivery_code": code,
-        })
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(order.order_status, "Delivered")
-        self.assertEqual(order.payment_status, "Pending")
-        self.assertEqual(order.payment.payment_status, "Pending")
-        response = admin.post(f"/admin/orders/{order.id}", data={
-            "order_status": "Delivered",
+            "order_status": "Pending",
             "payment_status": "Paid",
             "admin_note": "",
         })
         self.assertEqual(response.status_code, 302)
+        self.assertIsNotNone(order.payment.paid_at)
+        for status in ("Confirmed", "Packed", "Shipped"):
+            response = admin.post(f"/admin/orders/{order.id}", data={
+                "order_status": status,
+                "payment_status": "Paid",
+                "admin_note": "",
+            })
+            self.assertEqual(response.status_code, 302)
+        self.assertEqual(order.shipping_status, "Shipped")
+        shipped_page = admin.get(f"/admin/orders/{order.id}")
+        self.assertIn(b"Message client on WhatsApp", shipped_page.data)
+        self.assertIn(b"tap Send in WhatsApp", shipped_page.data)
+        shipment_message = parse_qs(
+            urlparse(shipping_update_whatsapp_url(order)).query
+        )["text"][0]
+        self.assertIn(f"order {order.order_number} has been shipped", shipment_message)
+        self.assertIn("Daily cream x 1", shipment_message)
+        self.assertIn("confirm receipt", shipment_message)
+        self.assertIn(
+            b"I received the correct order",
+            client.get(f"/client/orders/{order.id}").data,
+        )
+        client_orders_page = client.get("/client/orders")
+        self.assertIn(b"Payment", client_orders_page.data)
+        self.assertIn(b"Daily cream", client_orders_page.data)
+        self.assertIn(b"Shipped", client_orders_page.data)
+        admin_orders_page = admin.get("/admin/orders")
+        self.assertIn(b"Payment", admin_orders_page.data)
+        self.assertIn(b"Daily cream", admin_orders_page.data)
+        self.assertIn(b"Shipped", admin_orders_page.data)
+        self.assertNotIn(
+            b"Delivery code",
+            admin.get(f"/admin/orders/{order.id}").data,
+        )
+
+        response = client.post(f"/client/orders/{order.id}/received")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(order.order_status, "Delivered")
+        self.assertEqual(order.shipping_status, "Delivered")
         self.assertEqual(order.payment_status, "Paid")
         self.assertEqual(order.payment.payment_status, "Paid")
+        self.assertIn(b"Received", client.get(
+            f"/client/orders/{order.id}"
+        ).data)
 
-    def test_cod_delivery_code_verifies_payment_for_admin_and_client(self):
+    def test_order_threshold_offer_only_applies_after_merchandise_minimum(self):
         admin = self.app.test_client()
         admin.post("/admin/signup", data={
-            "full_name": "COD Admin",
-            "email": "cod-admin@example.test",
+            "full_name": "Offer Admin",
+            "email": "threshold-admin@example.test",
             "password": "admin-password-123",
             "confirm_password": "admin-password-123",
         })
+        starts_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1)
+        response = admin.post("/admin/promotions/new", data={
+            "name": "Basket threshold offer",
+            "discount_type": "percent",
+            "discount_value": "10",
+            "target_scope": "all",
+            "features": ["age", "orders", "spend", "order_amount"],
+            "minimum_age": "13",
+            "minimum_orders": "0",
+            "minimum_spend": "0",
+            "minimum_order_amount": "500",
+            "starts_at": starts_at.strftime("%Y-%m-%dT%H:%M"),
+        })
+        self.assertEqual(response.status_code, 302)
+        promotion = Promotion.query.one()
+        self.assertEqual(promotion.minimum_order_amount, Decimal("500.00"))
+        self.assertEqual(promotion.minimum_age, 13)
+        self.assertEqual(promotion.maximum_age, None)
+        self.assertEqual(promotion.minimum_orders, 0)
+        self.assertEqual(promotion.maximum_orders, None)
+        self.assertEqual(promotion.minimum_spend, Decimal("0.00"))
+        self.assertEqual(promotion.maximum_spend, None)
+        self.assertEqual(promotion.ends_at.year, 9999)
+        offer_page = admin.get("/admin/promotions")
+        self.assertIn(b"No end date", offer_page.data)
+        offer_form = admin.get(f"/admin/promotions/{promotion.id}/edit")
+        self.assertIn(b'Minimum order amount', offer_form.data)
+        self.assertNotIn(b"Minimum merchandise subtotal", offer_form.data)
+        self.assertIn(b'name="ends_at"', offer_form.data)
+
         client = self.app.test_client()
         client.post("/client/signup", data={
-            "full_name": "COD Client",
-            "email": "cod-client@example.test",
-            "phone": "9876500014",
+            "full_name": "Threshold Client",
+            "email": "threshold-client@example.test",
+            "phone": "9876500021",
             "password": "client-password-123",
-            "address_line1": "12 Delivery Road",
+            "age": "25",
+            "address_line1": "10 Threshold Road",
             "city": "Thane",
             "state": "Maharashtra",
             "country": "India",
             "pincode": "400601",
         })
-        client.post("/client/cart/add/1", data={"quantity": "1"})
-
-        response = client.post("/client/checkout", data={
-            "address_id": "1",
-            "payment_method": "Cash on delivery",
-        })
-        self.assertEqual(response.status_code, 302)
-        order = Order.query.one()
-        response = admin.post(f"/admin/orders/{order.id}", data={
-            "order_status": "Delivered",
-            "payment_status": "Pending",
-            "admin_note": "",
-        })
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(order.payment_status, "Pending")
-        self.assertNotEqual(order.shipping_status, "Delivered")
-
-        for status in ("Confirmed", "Packed"):
-            response = admin.post(f"/admin/orders/{order.id}", data={
-                "order_status": status,
-                "payment_status": "Pending",
-                "admin_note": "",
+        for quantity, expected_discount in (
+            (1, Decimal("0.00")),
+            (2, Decimal("50.00")),
+        ):
+            client.post("/client/cart/add/1", data={"quantity": str(quantity)})
+            checkout = client.get("/client/checkout")
+            if quantity == 1:
+                self.assertNotIn(b"Basket threshold offer", checkout.data)
+            else:
+                self.assertIn(b"Basket threshold offer", checkout.data)
+            response = client.post("/client/checkout", data={
+                "address_id": "1",
+                "payment_method": "UPI QR",
             })
             self.assertEqual(response.status_code, 302)
+            order = Order.query.order_by(Order.id.desc()).first()
+            self.assertEqual(order.discount_amount, expected_discount)
 
-        response = admin.post(f"/admin/orders/{order.id}", data={
-            "order_status": "Shipped",
-            "payment_status": "Pending",
-            "admin_note": "",
+    def test_shipping_regions_free_threshold_and_cancel_refund_amount(self):
+        admin = self.app.test_client()
+        admin.post("/admin/signup", data={
+            "full_name": "Shipping Admin",
+            "email": "shipping-admin@example.test",
+            "password": "admin-password-123",
+            "confirm_password": "admin-password-123",
         })
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(order.payment_status, "Pending")
-        self.assertEqual(order.shipping_status, "Shipped")
-        self.assertIn(b"Open WhatsApp and send receipt code", response.data)
-        whatsapp_href = re.search(
-            rb'href="(https://wa\.me/[^"]+)"', response.data
-        ).group(1).decode()
-        self.assertIn("wa.me/919876500014", whatsapp_href)
-        code_message = parse_qs(urlparse(whatsapp_href).query)["text"][0]
-        code = re.search(r"Delivery code: (\d{6})", code_message).group(1)
-        self.assertIn(order.order_number, code_message)
-        self.assertIn("INR 250.00", code_message)
+        settings_response = admin.post("/admin/settings", data={
+            "upi_id": "puoric@upi",
+            "store_state": "Gujarat",
+            "store_country": "India",
+            "shipping_within_state": "30",
+            "shipping_within_country": "60",
+            "shipping_out_of_country": "200",
+            "free_shipping_threshold": "500",
+        })
+        self.assertEqual(settings_response.status_code, 302)
 
-        response = admin.post(f"/admin/orders/{order.id}", data={
-            "action": "verify_delivery",
-            "delivery_code": "000000" if code != "000000" else "000001",
+        client = self.app.test_client()
+        client.post("/client/signup", data={
+            "full_name": "Shipping Client",
+            "email": "shipping-client@example.test",
+            "phone": "9876500020",
+            "password": "client-password-123",
+            "address_line1": "10 Shipping Road",
+            "city": "Thane",
+            "state": "Maharashtra",
+            "country": "India",
+            "pincode": "400601",
+        })
+        client_account = Customer.query.filter_by(
+            email="shipping-client@example.test"
+        ).one()
+        db.session.add_all([
+            CustomerAddress(
+                customer_id=client_account.id,
+                full_name="Shipping Client",
+                phone="9876500020",
+                address_line1="20 Gujarat Road",
+                city="Ahmedabad",
+                state="Gujarat",
+                country="India",
+                pincode="380001",
+            ),
+            CustomerAddress(
+                customer_id=client_account.id,
+                full_name="Shipping Client",
+                phone="+14155550123",
+                address_line1="30 Global Road",
+                city="San Francisco",
+                state="California",
+                country="United States",
+                pincode="94102",
+            ),
+        ])
+        db.session.commit()
+        address_ids = {
+            "within_state": CustomerAddress.query.filter_by(state="Gujarat").one().id,
+            "within_country": CustomerAddress.query.filter_by(state="Maharashtra").one().id,
+            "out_of_country": CustomerAddress.query.filter_by(
+                country="United States"
+            ).one().id,
+        }
+
+        for region, expected_shipping, expected_total in (
+            ("within_state", Decimal("30.00"), Decimal("280.00")),
+            ("within_country", Decimal("60.00"), Decimal("310.00")),
+            ("out_of_country", Decimal("200.00"), Decimal("450.00")),
+        ):
+            client.post("/client/cart/add/1", data={"quantity": "1"})
+            checkout = client.get("/client/checkout")
+            self.assertIn(b"Free shipping on merchandise orders of", checkout.data)
+            response = client.post("/client/checkout", data={
+                "address_id": str(address_ids[region]),
+                "payment_method": "UPI QR",
+            })
+            self.assertEqual(response.status_code, 302)
+            order = Order.query.order_by(Order.id.desc()).first()
+            self.assertEqual(order.shipping_amount, expected_shipping)
+            self.assertEqual(order.total_amount, expected_total)
+            self.assertIn(f"am={expected_total:.2f}", upi_payment_uri(
+                order, "puoric@upi", "Puoric"
+            ))
+            self.assertIn(
+                f"₹{expected_shipping:.2f}".encode(),
+                client.get(f"/client/orders/{order.id}").data,
+            )
+            if region == "within_state":
+                product = db.session.get(Product, 1)
+                self.assertEqual(product.stock, 4)
+                admin.post(f"/admin/orders/{order.id}", data={
+                    "order_status": "Pending",
+                    "payment_status": "Paid",
+                    "admin_note": "",
+                })
+                response = admin.post(f"/admin/orders/{order.id}", data={
+                    "order_status": "Cancelled",
+                    "payment_status": "Paid",
+                    "admin_note": "",
+                })
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(order.shipping_amount, Decimal("0.00"))
+                self.assertEqual(order.total_amount, Decimal("250.00"))
+                self.assertEqual(order.payment.amount, Decimal("280.00"))
+                self.assertEqual(product.stock, 5)
+                self.assertIn(
+                    b"Refund", admin.get(f"/admin/orders/{order.id}").data
+                )
+                self.assertIn(
+                    b"refund manually through UPI",
+                    client.get(f"/client/orders/{order.id}").data,
+                )
+            elif region == "within_country":
+                admin.post(f"/admin/orders/{order.id}", data={
+                    "order_status": "Pending",
+                    "payment_status": "Paid",
+                    "admin_note": "",
+                })
+                for status in ("Confirmed", "Packed", "Shipped"):
+                    response = admin.post(f"/admin/orders/{order.id}", data={
+                        "order_status": status,
+                        "payment_status": "Paid",
+                        "admin_note": "",
+                    })
+                    self.assertEqual(response.status_code, 302)
+                response = admin.post(f"/admin/orders/{order.id}", data={
+                    "order_status": "Cancelled",
+                    "payment_status": "Paid",
+                    "admin_note": "",
+                })
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(order.shipping_amount, Decimal("60.00"))
+                self.assertEqual(order.total_amount, Decimal("310.00"))
+                self.assertIn(
+                    b"cancelled after dispatch",
+                    admin.get(f"/admin/orders/{order.id}").data,
+                )
+                self.assertEqual(db.session.get(Product, 1).stock, 4)
+
+        client.post("/client/cart/add/1", data={"quantity": "2"})
+        response = client.post("/client/checkout", data={
+            "address_id": str(address_ids["within_state"]),
+            "payment_method": "UPI QR",
         })
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(order.payment_status, "Pending")
-
-        response = admin.post(f"/admin/orders/{order.id}", data={
-            "action": "verify_delivery",
-            "delivery_code": code,
-        })
-        self.assertEqual(response.status_code, 302)
-
-        self.assertEqual(order.payment_status, "Paid")
-        self.assertEqual(order.order_status, "Delivered")
-        self.assertEqual(order.shipping_status, "Delivered")
-        self.assertIsNotNone(order.payment.paid_at)
+        free_order = Order.query.order_by(Order.id.desc()).first()
+        self.assertEqual(free_order.subtotal_amount, Decimal("500.00"))
+        self.assertEqual(free_order.shipping_amount, Decimal("0.00"))
+        self.assertEqual(free_order.total_amount, Decimal("500.00"))
 
     def test_admin_can_save_store_upi_id_and_checkout_uses_it(self):
         admin = self.app.test_client()
@@ -1087,6 +1459,12 @@ class DashboardFlowTests(unittest.TestCase):
 
         saved = admin.post("/admin/settings", data={
             "upi_id": "puoric.store@bank",
+            "store_state": "Maharashtra",
+            "store_country": "India",
+            "shipping_within_state": "0",
+            "shipping_within_country": "0",
+            "shipping_out_of_country": "0",
+            "free_shipping_threshold": "",
         })
         self.assertEqual(saved.status_code, 302)
         settings = admin.get("/admin/settings")

@@ -19,12 +19,17 @@ def client_metrics(customer_id):
 
 def promotion_quote(customer, lines, now=None):
     category_subtotals = {}
+    product_subtotals = {}
     for line in lines:
+        amount = Decimal(line["subtotal"])
         category_id = line["product"].category_id
-        category_subtotals[category_id] = (
-            category_subtotals.get(category_id, Decimal("0.00"))
-            + Decimal(line["subtotal"])
-        )
+        product_id = line["product"].id
+        category_subtotals[category_id] = category_subtotals.get(
+            category_id, Decimal("0.00")
+        ) + amount
+        product_subtotals[product_id] = product_subtotals.get(
+            product_id, Decimal("0.00")
+        ) + amount
     subtotal = sum(category_subtotals.values(), Decimal("0.00")).quantize(
         CENT, rounding=ROUND_HALF_UP
     )
@@ -40,12 +45,13 @@ def promotion_quote(customer, lines, now=None):
     ).all()
     candidates = []
     for promotion in eligible:
-        if promotion.minimum_age is not None and (
-            customer.age is None or customer.age < promotion.minimum_age
+        if (
+            promotion.minimum_order_amount is not None
+            and subtotal < Decimal(promotion.minimum_order_amount)
         ):
             continue
-        if promotion.maximum_age is not None and (
-            customer.age is None or customer.age > promotion.maximum_age
+        if promotion.minimum_age is not None and (
+            customer.age is None or customer.age < promotion.minimum_age
         ):
             continue
         if promotion.gender and (
@@ -57,23 +63,28 @@ def promotion_quote(customer, lines, now=None):
             continue
         if promotion.minimum_orders is not None and order_count < promotion.minimum_orders:
             continue
-        if promotion.maximum_orders is not None and order_count > promotion.maximum_orders:
-            continue
         if promotion.minimum_spend is not None and lifetime_spend < Decimal(promotion.minimum_spend):
             continue
-        if promotion.maximum_spend is not None and lifetime_spend > Decimal(promotion.maximum_spend):
-            continue
-        applicable_subtotal = (
-            subtotal
-            if promotion.applies_to_all_categories
-            else sum(
+        if promotion.target_scope == "products":
+            selected_product_ids = {product.id for product in promotion.products}
+            applicable_subtotal = sum(
                 (
-                    amount for category_id, amount in category_subtotals.items()
-                    if any(category.id == category_id for category in promotion.categories)
+                    amount for product_id, amount in product_subtotals.items()
+                    if product_id in selected_product_ids
                 ),
                 Decimal("0.00"),
             )
-        )
+        elif promotion.target_scope == "categories" or not promotion.applies_to_all_categories:
+            selected_category_ids = {category.id for category in promotion.categories}
+            applicable_subtotal = sum(
+                (
+                    amount for category_id, amount in category_subtotals.items()
+                    if category_id in selected_category_ids
+                ),
+                Decimal("0.00"),
+            )
+        else:
+            applicable_subtotal = subtotal
         if applicable_subtotal <= 0:
             continue
         if promotion.discount_type == "percent":

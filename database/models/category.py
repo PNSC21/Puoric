@@ -27,12 +27,6 @@ class Category(BaseModel):
         nullable=True
     )
 
-    display_order = db.Column(
-        db.Integer,
-        default=0,
-        nullable=False
-    )
-
     is_active = db.Column(
         db.Boolean,
         default=True,

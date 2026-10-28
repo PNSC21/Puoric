@@ -7,7 +7,7 @@
         {% set area = "customer" %}{% include "components/dashboard_nav.html" %}
         <div class="order-detail-grid">
             <section class="dashboard-panel">
-                {% if order.payment_method == "UPI QR" and order.payment_status != "Paid" %}
+                {% if order.payment_method == "UPI QR" and order.payment_status in ["Pending", "Failed"] and order.order_status != "Cancelled" %}
                     <div class="payment-instructions">
                         <h2>Complete your UPI payment</h2>
                         {% if payment_qr %}
@@ -18,8 +18,10 @@
                             <p class="muted">The store's UPI payment details are not available right now. Contact the store before paying.</p>
                         {% endif %}
                     </div>
-                {% elif order.payment_method == "UPI QR" %}
+                {% elif order.payment_method == "UPI QR" and order.payment_status == "Paid" %}
                     <p class="payment-confirmed">UPI payment verified by the store.</p>
+                {% elif order.payment_method == "UPI QR" and order.payment_status == "Refunded" %}
+                    <p class="payment-confirmed">Your payment refund has been recorded by the store.</p>
                 {% endif %}
                 <h2>Progress</h2>
                 {% set statuses = ["Pending", "Confirmed", "Packed", "Shipped", "Delivered"] %}
@@ -27,25 +29,22 @@
                 {% if order.order_status in statuses %}{% set progress.index = statuses.index(order.order_status) %}{% endif %}
                 <ol class="order-progress">
                     {% for status in statuses %}
-                        <li class="{% if status == order.order_status %}current{% elif loop.index0 < progress.index %}complete{% endif %}">{{ status }}</li>
+                        <li class="{% if status == order.order_status %}current{% elif loop.index0 < progress.index %}complete{% endif %}">{% if status == "Delivered" %}Received{% else %}{{ status }}{% endif %}</li>
                     {% endfor %}
                 </ol>
-                <p>Current status: <strong>{{ order.order_status }}</strong></p>
-                {% if order.payment_method == "Cash on delivery" %}
-                    {% if order.payment_status == "Paid" %}
-                        <p class="payment-confirmed">Delivery and cash payment were verified by the store.</p>
-                    {% else %}
-                        <p>Cash on delivery: <strong>{{ order.total_amount|currency }}</strong>.</p>
-                    {% endif %}
-                {% endif %}
+                <p>Current status: <strong>{{ "Received" if order.order_status == "Delivered" else order.order_status }}</strong></p>
                 {% if order.order_status == "Shipped" %}
-                    {% if order.payment_method == "Cash on delivery" and order.payment_status != "Paid" %}
-                        <p class="muted">The store will send a one-time receipt code to your delivery phone. Check your order and pay the delivery person before sharing the code; it confirms delivery and cash payment.</p>
-                    {% else %}
-                        <p class="muted">The store will send a one-time receipt code to your delivery phone. Check that the order is correct before sharing the code with the store to confirm receipt. Payment status is handled separately.</p>
+                    <p class="muted">After your parcel arrives, check it and confirm receipt below. You can only do this once the store has verified your prepaid payment.</p>
+                {% endif %}
+                {% if order.order_status == "Delivered" %}<p class="payment-confirmed">You confirmed that you received this parcel.</p>{% endif %}
+                {% if order.order_status == "Cancelled" %}
+                    <p>This order was cancelled.</p>
+                    {% if refund_due > 0 %}
+                        <p class="muted">The shipping fee was removed. The store will process your {{ refund_due|currency }} refund manually through UPI.</p>
+                    {% elif order.payment_status == "Paid" and order.shipping_status == "Shipped" %}
+                        <p class="muted">The parcel was cancelled after dispatch. Contact the store about any refund.</p>
                     {% endif %}
                 {% endif %}
-                {% if order.order_status == "Cancelled" %}<p>This order was cancelled.</p>{% endif %}
                 {% if order.admin_note %}<p>{{ order.admin_note }}</p>{% endif %}
             </section>
             <section class="dashboard-panel">
@@ -61,12 +60,18 @@
                         <p class="muted">The store's WhatsApp number is not configured.</p>
                     {% endif %}
                 {% endif %}
+                {% if order.order_status == "Shipped" and order.payment_status == "Paid" %}
+                    <form method="post" action="{{ url_for('customer.confirm_order_received', order_id=order.id) }}">
+                        <button class="btn-primary-custom" type="submit">I received the correct order</button>
+                    </form>
+                {% endif %}
                 <h2>Delivery address</h2><p>{{ order.shipping_name }}<br>{{ order.shipping_phone }}<br>{{ order.shipping_address }}</p>
                 <h2>Items</h2>
                 {% for item in order.order_items %}<p>{{ item.product.name }}{% if item.variant %} · {{ item.variant.name }}: {{ item.variant.value }}{% if item.variant.name|lower == 'weight' and item.variant.unit %} {{ item.variant.unit }}{% endif %}{% endif %} × {{ item.quantity }} <strong>{{ item.subtotal|currency }}</strong></p>{% endfor %}
                 <hr><p>Payment: {{ order.payment_method }} · {{ order.payment_status }}</p>
                 <p>Subtotal <strong>{{ order.subtotal_amount|currency }}</strong></p>
                 {% if order.discount_amount %}<p>{{ order.promotion_name }} <strong>−{{ order.discount_amount|currency }}</strong></p>{% endif %}
+                <p>Shipping <strong>{{ order.shipping_amount|currency }}</strong></p>
                 <p class="total-line"><strong>Total</strong><strong>{{ order.total_amount|currency }}</strong></p>
             </section>
         </div>

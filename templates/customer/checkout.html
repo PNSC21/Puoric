@@ -9,7 +9,13 @@
                 <h2>Choose an address</h2>
                 {% for address in addresses %}
                     <label class="address-choice">
-                        <input type="radio" name="address_id" value="{{ address.id }}" {% if address.is_default or loop.first %}checked{% endif %} required>
+                        {% set shipping_quote = shipping_quotes[address.id] %}
+                        <input type="radio" name="address_id" value="{{ address.id }}"
+                            data-shipping-amount="{{ '%.2f'|format(shipping_quote.amount) }}"
+                            data-shipping-label="{% if shipping_quote.region == 'within_state' %}Shipping within state{% elif shipping_quote.region == 'within_country' %}Shipping within country{% else %}International shipping{% endif %}"
+                            data-free-shipping="{{ 'true' if shipping_quote.free_shipping else 'false' }}"
+                            data-free-shipping-threshold="{{ shipping_quote.free_threshold if shipping_quote.free_threshold is not none else '' }}"
+                            {% if address.id == selected_address_id %}checked{% endif %} required>
                         <span><strong>{{ address.full_name }}{% if address.is_default %} · Default{% endif %}</strong><br>{{ address.phone }}<br>{{ address.formatted }}</span>
                     </label>
                 {% else %}
@@ -20,31 +26,23 @@
                     style="width:100%; min-height:40px; border:1px solid #ccc; border-radius:12px; padding:10px 12px; box-sizing:border-box; resize:vertical; overflow:hidden;"
                     oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px';"></textarea>
                 </label>
-                <h2>Payment method</h2>
-                <label class="payment-choice">
-                    <input type="radio" name="payment_method" value="Cash on delivery" checked required>
-                    <span><strong>Cash on delivery</strong><small>Pay when your order arrives.</small></span>
-                </label>
-                <label class="payment-choice {% if not upi_enabled %}payment-choice-disabled{% endif %}">
-                    <input type="radio" name="payment_method" value="UPI QR" {% if not upi_enabled %}disabled{% endif %}>
-                    <span><strong>Pay by UPI QR</strong><small>
-                        {% if upi_enabled %}
-                            Scan the order-specific QR code after placing your order.
-                        {% else %}
-                            {{ upi_unavailable_reason }}
-                        {% endif %}
-                    </small></span>
-                </label>
+                <h2>Prepaid online payment</h2>
+                <input type="hidden" name="payment_method" value="UPI QR">
+                <p>Pay by UPI QR before your order is processed. The store will verify your payment before confirming the order.</p>
+                {% if not upi_enabled %}<p class="muted">{{ upi_unavailable_reason }}</p>{% endif %}
             </section>
             <aside class="dashboard-panel cart-summary">
                 <h2>Order summary</h2>
                 {% for line in lines %}<p><span>{{ line.product.name }} × {{ line.quantity }}</span><strong>{{ line.subtotal|currency }}</strong></p>{% endfor %}
                 <hr><p><span>Subtotal</span><strong>{{ subtotal|currency }}</strong></p>
                 {% if quote.promotion %}<p><span>{{ quote.promotion.name }}</span><strong>−{{ quote.discount|currency }}</strong></p>{% endif %}
-                <p class="total-line"><strong>Total</strong><strong>{{ quote.total|currency }}</strong></p>
-                <button class="btn-primary-custom" type="submit" {% if not addresses %}disabled{% endif %}>Place order</button>
+                <p><span id="shipping-label">{% if selected_shipping.region == "within_state" %}Shipping within state{% elif selected_shipping.region == "within_country" %}Shipping within country{% else %}International shipping{% endif %}</span><strong id="shipping-amount">{{ selected_shipping.amount|currency }}</strong></p>
+                <p class="muted" id="free-shipping-note">{% if selected_shipping.free_shipping %}Free shipping applied.{% elif selected_shipping.free_threshold is not none %}Free shipping on merchandise orders of {{ selected_shipping.free_threshold|currency }} or more.{% endif %}</p>
+                <p class="total-line"><strong>Total</strong><strong id="checkout-total" data-merchandise-total="{{ '%.2f'|format(quote.total) }}">{{ order_total|currency }}</strong></p>
+                <button class="btn-primary-custom" type="submit" {% if not addresses or not upi_enabled %}disabled{% endif %}>Place prepaid order</button>
             </aside>
         </form>
+        <script src="{{ url_for('static', filename='js/checkout.js') }}" defer></script>
     </div>
 </section>
 {% endblock %}

@@ -13,10 +13,24 @@
             <button class="btn-outline-custom" type="submit">Filter orders</button>
         </form>
         <div class="dashboard-panel table-wrap">
-            <table><thead><tr><th>Order</th><th>Client</th><th>Placed</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>
+            <table><thead><tr><th>Order</th><th>Client</th><th>Summary</th><th>Placed</th><th>Payment</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>
             {% for order in orders %}
-                <tr><td>{{ order.order_number }}</td><td>{{ order.customer.full_name }}<br><span class="muted">{{ order.customer.email }}</span></td><td>{{ order.created_at.strftime("%d %b %Y") }}</td><td>{{ order.total_amount|currency }}</td><td>{{ order.order_status }}</td><td><a href="{{ url_for('admin.order_detail', order_id=order.id) }}">Manage</a></td></tr>
-            {% else %}<tr><td colspan="6">No orders have been placed.</td></tr>{% endfor %}
+                <tr>
+                    <td>{{ order.order_number }}</td>
+                    <td>{{ order.customer.full_name }}<br><span class="muted">{{ order.customer.email }}</span></td>
+                    <td>
+                        {% for item in order.order_items %}
+                            {{ item.product.name }}{% if item.variant %} ({{ item.variant.name }}: {{ item.variant.value }}){% endif %} × {{ item.quantity }}{% if not loop.last %}<br>{% endif %}
+                        {% endfor %}
+                        <br><small class="muted">Items {{ order.subtotal_amount|currency }}{% if order.discount_amount %} · Discount −{{ order.discount_amount|currency }}{% endif %} · Shipping {{ order.shipping_amount|currency }}</small>
+                    </td>
+                    <td>{{ order.created_at.strftime("%d %b %Y") }}</td>
+                    <td><span class="status-pill">{{ order.payment_status }}</span></td>
+                    <td>{{ order.total_amount|currency }}</td>
+                    <td>{{ order.order_status }}</td>
+                    <td><a href="{{ url_for('admin.order_detail', order_id=order.id) }}">Manage</a></td>
+                </tr>
+            {% else %}<tr><td colspan="8">No orders have been placed.</td></tr>{% endfor %}
             </tbody></table>
         </div>
     </div>

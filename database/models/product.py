@@ -131,6 +131,12 @@ class Product(BaseModel):
         lazy=True
     )
 
+    promotions = db.relationship(
+        "Promotion",
+        secondary="promotion_products",
+        back_populates="products",
+    )
+
     def __repr__(self):
         return f"<Product {self.name}>"
 

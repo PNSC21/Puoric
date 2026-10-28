@@ -25,7 +25,7 @@ def catalog():
         )
     products = query.order_by(Product.is_featured.desc(), Product.name.asc()).all()
     categories = Category.query.filter_by(is_active=True).order_by(
-        Category.display_order, Category.name
+        Category.name
     ).all()
     return render_template(
         "store/catalog.html",

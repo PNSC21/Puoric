@@ -11,48 +11,44 @@
                 {% for item in order.order_items %}<p>{{ item.product.name }}{% if item.variant %} · {{ item.variant.name }}: {{ item.variant.value }}{% if item.variant.name|lower == 'weight' and item.variant.unit %} {{ item.variant.unit }}{% endif %}{% endif %} × {{ item.quantity }} <strong>{{ item.subtotal|currency }}</strong></p>{% endfor %}
                 <hr><p>Subtotal <strong>{{ order.subtotal_amount|currency }}</strong></p>
                 {% if order.discount_amount %}<p>{{ order.promotion_name }} <strong>−{{ order.discount_amount|currency }}</strong></p>{% endif %}
+                <p>Shipping <strong>{{ order.shipping_amount|currency }}</strong></p>
                 <p class="total-line"><strong>Total</strong><strong>{{ order.total_amount|currency }}</strong></p>
                 <h2>Ship to</h2><p>{{ order.shipping_name }} · {{ order.shipping_phone }}<br>{{ order.shipping_address }}</p>
                 {% if order.customer_note %}<h2>Client note</h2><p>{{ order.customer_note }}</p>{% endif %}
                 {% if order.order_status not in ["Cancelled", "Delivered"] %}
-                    <h2>Delivery confirmation</h2>
-                    {% if order.payment_method == "Cash on delivery" and order.payment_status != "Paid" %}
-                        <p>Collect <strong>{{ order.total_amount|currency }}</strong> and confirm the client has the correct order before asking for their code. The code confirms both delivery and cash payment.</p>
-                    {% else %}
-                        <p>The one-time code confirms the client received the correct order. Payment status is handled separately.</p>
-                    {% endif %}
-                    {% if order.shipping_status == "Shipped" %}
-                        {% if delivery_whatsapp_url %}
-                            <p>Send the one-time code to {{ order.shipping_phone }}. Ask the client to share it after receiving and checking the order.</p>
-                            <a class="btn-primary-custom" href="{{ delivery_whatsapp_url }}" target="_blank" rel="noopener noreferrer">Open WhatsApp and send receipt code</a>
+                    <h2>Parcel receipt</h2>
+                    {% if order.order_status == "Shipped" %}
+                        <p>Waiting for the client to confirm receipt from their order page.</p>
+                        {% if shipping_update_whatsapp_url %}
+                            <a class="btn-outline-custom" href="{{ shipping_update_whatsapp_url }}" target="_blank" rel="noopener">Message client on WhatsApp</a>
+                            <p class="muted">Review the prefilled shipment update and tap Send in WhatsApp.</p>
                         {% else %}
-                            <p>Prepare a one-time code in WhatsApp for {{ order.shipping_phone }}.</p>
+                            <p class="muted">No valid client WhatsApp number is available for this address.</p>
                         {% endif %}
-                        <form method="post">
-                            <input type="hidden" name="action" value="prepare_delivery_code">
-                            <button class="btn-outline-custom" type="submit">
-                                {% if order.delivery_code_hash %}Create a new code{% else %}Prepare WhatsApp code{% endif %}
-                            </button>
-                        </form>
-                        <form class="stack-form" method="post">
-                            <input type="hidden" name="action" value="verify_delivery">
-                            <label>Client receipt code<input name="delivery_code" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label>
-                            <button class="btn-primary-custom" type="submit">Confirm receipt</button>
-                        </form>
                     {% else %}
-                        <p>Move the order to Shipped to prepare its WhatsApp receipt code.</p>
+                        <p>After the prepaid UPI payment is verified, update the order to Shipped. The client will confirm when the parcel arrives.</p>
                     {% endif %}
+                {% endif %}
+                {% if order.order_status == "Delivered" %}
+                    <h2>Parcel receipt</h2>
+                    <p>The client confirmed receipt from their order page.</p>
+                {% endif %}
+                {% if refund_due > 0 %}
+                    <p class="payment-warning">Shipping was removed from this cancelled, undispatched order. Refund <strong>{{ refund_due|currency }}</strong> through the UPI account, then record the refund status.</p>
+                {% elif order.order_status == "Cancelled" and order.payment_status == "Paid" and order.shipping_status == "Shipped" %}
+                    <p class="payment-warning">This parcel was cancelled after dispatch. Handle any refund through the UPI account, then record the refund status.</p>
                 {% endif %}
             </section>
             <form class="dashboard-panel stack-form" method="post">
                 <h2>Order status</h2>
                 <label>Progress<select name="order_status">{% for status in order_statuses %}<option {% if status == order.order_status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select></label>
-                {% if order.payment_method != "Cash on delivery" or order.payment_status == "Paid" %}
-                    <label>Payment<select name="payment_status">{% for status in payment_statuses %}<option {% if status == order.payment_status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select></label>
-                {% else %}
-                    <p>Payment status: <strong>{{ order.payment_status }}</strong>. COD can be marked Paid only after delivery-code verification.</p>
-                    <input type="hidden" name="payment_status" value="{{ order.payment_status }}">
+                {% if order.payment_status != "Paid" %}
+                    <p>Check the transaction in the store's UPI account before marking payment Paid. An order cannot be confirmed or shipped before payment is verified.</p>
                 {% endif %}
+                {% if order.order_status != "Cancelled" and order.shipping_status != "Shipped" %}
+                    <p>Cancellation before dispatch removes the shipping fee. After dispatch, shipping is retained and refunds are handled manually through UPI.</p>
+                {% endif %}
+                <label>Payment<select name="payment_status">{% for status in payment_statuses %}<option {% if status == order.payment_status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select></label>
                 <label>Admin note<textarea name="admin_note" rows="4" maxlength="1000">{{ order.admin_note or '' }}</textarea></label>
                 <button class="btn-primary-custom" type="submit">Save order status</button>
             </form>

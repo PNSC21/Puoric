@@ -27,6 +27,8 @@ class Order(BaseModel):
 
     discount_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
 
+    shipping_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+
     promotion_id = db.Column(db.Integer, db.ForeignKey("promotions.id"))
 
     promotion_name = db.Column(db.String(120))
@@ -63,16 +65,6 @@ class Order(BaseModel):
         db.Text
     )
 
-    delivery_code_hash = db.Column(db.String(255))
-
-    delivery_code_sent_at = db.Column(db.DateTime)
-
-    delivery_code_attempts = db.Column(
-        db.Integer,
-        nullable=False,
-        default=0,
-    )
-
     shipping_name = db.Column(
         db.String(120),
         nullable=False,
@@ -81,6 +73,18 @@ class Order(BaseModel):
 
     shipping_phone = db.Column(
         db.String(20),
+        nullable=False,
+        default=""
+    )
+
+    shipping_state = db.Column(
+        db.String(80),
+        nullable=False,
+        default=""
+    )
+
+    shipping_country = db.Column(
+        db.String(80),
         nullable=False,
         default=""
     )

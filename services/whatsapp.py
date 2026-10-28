@@ -54,6 +54,7 @@ def order_whatsapp_url(order, store_number):
         f"Subtotal: INR {order.subtotal_amount:.2f}",
         f"Offer: {order.promotion_name or 'None'}",
         f"Discount: INR {order.discount_amount:.2f}",
+        f"Shipping: INR {order.shipping_amount:.2f}",
         f"Total: INR {order.total_amount:.2f}",
         f"Payment method: {order.payment_method}",
         f"Payment status: {order.payment_status}",
@@ -62,26 +63,21 @@ def order_whatsapp_url(order, store_number):
     return whatsapp_chat_url(store_number, "\n".join(lines))
 
 
-def delivery_code_whatsapp_url(order, code):
-    if order.payment_method == "Cash on delivery":
-        handoff = (
-            "Share this code with the store only after the correct order is "
-            "delivered and the cash-on-delivery amount is paid."
-        )
-    else:
-        handoff = (
-            "Share this code with the store only after receiving and checking "
-            "the correct order. Payment status is handled separately."
-        )
+def shipping_update_whatsapp_url(order):
+    items = ", ".join(
+        f"{item.product.name} x {item.quantity}"
+        for item in order.order_items
+    )
     message = "\n".join([
-        f"Puoric delivery verification for order {order.order_number}",
-        f"Delivery code: {code}",
+        f"Hello {order.shipping_name},",
+        f"Your Puoric order {order.order_number} has been shipped.",
+        f"Items: {items}",
+        "Please check that these items arrived correctly, then confirm receipt "
+        "from your order page.",
         f"Order total: INR {order.total_amount:.2f}",
-        handoff,
-        "This code expires in 24 hours.",
     ])
     return whatsapp_chat_url(
         order.shipping_phone,
         message,
-        order.customer.country or "India",
+        order.shipping_country or "India",
     )

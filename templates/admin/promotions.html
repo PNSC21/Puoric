@@ -3,7 +3,7 @@
 {% block content %}
 <section class="section dashboard-section">
     <div class="container-custom">
-        <header class="page-heading"><p class="eyebrow">CLIENT OFFERS</p><h1>Offers</h1><p>Eligible offers are applied automatically at checkout across all categories.</p></header>
+        <header class="page-heading"><p class="eyebrow">CLIENT OFFERS</p><h1>Offers</h1><p>Eligible offers are applied automatically at checkout to their selected products, categories, or all products and varieties.</p></header>
         {% set area = "admin" %}{% include "components/dashboard_nav.html" %}
         <p><a class="btn-primary-custom" href="{{ url_for('admin.promotion_edit') }}">Create offer</a></p>
         <section class="dashboard-panel">
@@ -12,19 +12,28 @@
                 {% for promotion in promotions %}
                     <tr>
                         <td><strong>{{ promotion.name }}</strong><br>
-                            {% if promotion.applies_to_all_categories %}All categories{% else %}
+                            {% if promotion.target_scope == "products" %}
+                                Products:
+                                {% for product in promotion.products %}{{ product.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+                                · all varieties
+                            {% elif promotion.target_scope == "categories" or not promotion.applies_to_all_categories %}
+                                Categories:
                                 {% for category in promotion.categories %}{{ category.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+                            {% else %}
+                                All products and varieties
                             {% endif %}
                         </td>
-                        <td>{% if promotion.discount_type == "percent" %}{{ promotion.discount_value }}%{% else %}{{ promotion.discount_value|currency }}{% endif %}</td>
+                        <td>{% if promotion.discount_type == "percent" %}{{ promotion.discount_value }}%{% else %}{{ promotion.discount_value|currency }}{% endif %}{% if promotion.minimum_order_amount is not none %}<br><span class="muted">On orders of {{ promotion.minimum_order_amount|currency }}+</span>{% endif %}</td>
                         <td>
                             {% if promotion.festival_name %}{{ promotion.festival_name }} · {% endif %}
                             {% if promotion.new_clients_only %}New clients only · {% endif %}
                             {% if promotion.gender %}{{ promotion.gender }} · {% endif %}
-                            {% if promotion.minimum_age or promotion.maximum_age %}Age {{ promotion.minimum_age or "13+" }}–{{ promotion.maximum_age or "120" }} · {% endif %}
-                            {% if promotion.minimum_orders is not none or promotion.maximum_orders is not none %}{{ promotion.minimum_orders or 0 }}–{{ promotion.maximum_orders or "any" }} orders{% else %}All clients{% endif %}
+                            {% if promotion.minimum_age is not none %}Age {{ promotion.minimum_age }}+ · {% endif %}
+                            {% if promotion.minimum_orders is not none %}{{ promotion.minimum_orders }}+ orders · {% endif %}
+                            {% if promotion.minimum_spend is not none %}Lifetime spend {{ promotion.minimum_spend|currency }}+{% endif %}
+                            {% if not promotion.festival_name and not promotion.new_clients_only and not promotion.gender and promotion.minimum_age is none and promotion.minimum_orders is none and promotion.minimum_spend is none %}All clients{% endif %}
                         </td>
-                        <td>{{ promotion.starts_at.strftime("%d %b %Y %H:%M") }} – {{ promotion.ends_at.strftime("%d %b %Y %H:%M") }} UTC</td>
+                        <td>{{ promotion.starts_at.strftime("%d %b %Y %H:%M") }} – {% if promotion.ends_at.year >= 9999 %}No end date{% else %}{{ promotion.ends_at.strftime("%d %b %Y %H:%M") }} UTC{% endif %}</td>
                         <td>{{ "Active" if promotion.is_active else "Paused" }}</td>
                         <td class="inline-actions">
                             <a href="{{ url_for('admin.promotion_edit', promotion_id=promotion.id) }}">Edit</a>

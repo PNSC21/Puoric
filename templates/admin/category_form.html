@@ -8,7 +8,6 @@
         <form class="form-card form-card-wide" method="post" enctype="multipart/form-data">
             <div class="form-grid">
                 <label>Category name<input name="name" maxlength="100" required value="{{ category.name if category else '' }}"></label>
-                <label>Display order<input type="number" name="display_order" min="0" value="{{ category.display_order if category else 0 }}"></label>
                 <label class="field-wide">Description<textarea name="description" rows="4">{{ category.description if category else '' }}</textarea></label>
                 <label class="field-wide">Category image<input type="file" name="image" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"><span class="muted">JPG, PNG, or WebP; maximum 5 MB.</span>{% if category and category.image %}<img class="admin-image-preview" src="{{ url_for('static', filename=category.image) }}" alt="{{ category.name }}">{% endif %}</label>
             </div>
