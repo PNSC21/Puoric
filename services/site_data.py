@@ -1,15 +1,14 @@
 import os
 
-
 site = {
     "name": "Puoric",
     "tagline": "Be Pure, Be Unique.",
     "description": "Premium skincare, haircare and personal care products crafted with purity and care.",
-    "email": os.getenv("STORE_EMAIL", "").strip(),
-    "phone": os.getenv("STORE_PHONE", "").strip(),
-    "whatsapp": os.getenv("STORE_WHATSAPP_NUMBER", "").strip(),
-    "address": os.getenv("STORE_ADDRESS", "").strip(),
+    "email": "chnilima28@gmail.com",
+    "phone": "+91 84229 94021",
+    "whatsapp": "918422994021",
+    "address": "Gulmohor Residency, Manpada, Thane, Maharashtra, India",
     "copyright": "© 2026 Puoric. All Rights Reserved.",
-    "instagram": os.getenv("STORE_INSTAGRAM_URL", "").strip(),
-    "facebook": os.getenv("STORE_FACEBOOK_URL", "").strip(),
+    "instagram": "https://www.instagram.com/puoric2020/",
+    "facebook": "https://www.facebook.com/people/Puoric/100067688724713/"
 }
